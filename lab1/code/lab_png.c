@@ -13,7 +13,7 @@ int is_png(U8 *buf){
     correct_png[6] = 0x1A;
     correct_png[7] = 0x0A;
 
-    for (int i = 0; i < n; i++){
+    for (int i = 0; i < 8; i++){
         if (buf[i] != correct_png[i]){
             /*wrong header for png*/
             free (correct_png);
@@ -32,6 +32,7 @@ int get_png_height(struct data_IHDR *buf){
 int get_png_width(struct data_IHDR *buf){
     return buf -> height;
 }
+
 int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long offset, int whence){
     fseek(fp, offset, whence);
 
@@ -41,7 +42,7 @@ int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long offset, int whence){
     if (read(fd, &(out->width), 4) != 4)
         return 1;
 
-    if (read(fd, &(out->height), 4 != 4)
+    if (read(fd, &(out->height), 4) != 4)
         return 1;
 
     if (read(fd, &(out->bit_depth), 1) != 1)
@@ -60,5 +61,4 @@ int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long offset, int whence){
         return 1;
 
     return 0;
-
 }
