@@ -1,8 +1,6 @@
 #include "lab_png.h"
 
 int is_png(U8 *buf){
-    if (n != 8)
-        return 2; /*buffer size didn't match*/
 
     U8 *correct_png = malloc ( 8 * sizeof(U8) ); /*allocate 8 bytes to check*/
 
