@@ -1,4 +1,4 @@
-#include "lab_png.h
+#include "lab_png.h"
 
 int is_png(U8 *buf){
     if (n != 8)
