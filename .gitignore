@@ -1,5 +1,4 @@
 #LaTex generated files
-
 **/*.aux
 **/*.blg
 **/*.brf
@@ -9,7 +8,6 @@
 **/*.lot
 **/*.synctex.gz
 **/*.toc
-
 
 # Object files
 **/*.o
@@ -38,3 +36,6 @@
 
 # flymd intermediate files
 **/flymd.*
+
+# Mac OS settings
+.DS_Store
