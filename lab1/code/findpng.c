@@ -27,11 +27,11 @@ void findpng(char *path)
     {
         // Store updated path in pathStorage
         unsigned long length = strlen(path) + 2;
-        char pathStorage[1024 + length];
-        snprintf(pathStorage, sizeof(pathStorage), "%s/%s", path, dirent->d_name);
+        char path_storage[1024 + length];
+        snprintf(path_storage, sizeof(path_storage), "%s/%s", path, dirent->d_name);
 
         // Write information about the file into stat
-        if (lstat(pathStorage, &stat) < 0)
+        if (lstat(path_storage, &stat) < 0)
         {
             continue;
         }
@@ -39,7 +39,7 @@ void findpng(char *path)
         // Regular file
         if (S_ISREG(stat.st_mode))
         {
-            FILE *file = fopen(pathStorage, "r");
+            FILE *file = fopen(path_storage, "r");
             U8 buffer[8];
             fread(buffer, 1, 8, file);
 
@@ -64,7 +64,7 @@ void findpng(char *path)
                 continue;
             }
 
-            findpng(pathStorage);
+            findpng(path_storage);
         }
         // Symbolic link
         else {
