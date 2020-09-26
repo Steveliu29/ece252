@@ -132,8 +132,8 @@ int main(int argc, char **argv){
     sum_IDAT -> length = len_def;
     add_IDAT_chunk(new_fd, sum_IDAT);
     add_IEND_chunk(new_fd);
-    // printf("%d\n", len_def);
-    // printf("%d\n", sum_IDAT -> length);
+     // printf("%d\n", len_def);
+     // printf("%d\n", sum_IDAT -> length);
 
 
 
@@ -250,10 +250,10 @@ int add_IDAT_chunk(int fd, struct chunk* in){
     write(fd, in -> p_data, (in -> length));
 
     U8 *type_and_data_buf = malloc ( (in -> length + 4) * sizeof(U8) );
-    memcpy(type_and_data_buf, &net_length, 4);
+    memcpy(type_and_data_buf, &in -> type, 4);
     memcpy(type_and_data_buf + 4, in -> p_data, in -> length);
 
-    int computed_crc = crc(type_and_data_buf, (in -> length +4));
+    int computed_crc = crc(type_and_data_buf, (in -> length + 4));
 
     computed_crc = htonl (computed_crc);
 
