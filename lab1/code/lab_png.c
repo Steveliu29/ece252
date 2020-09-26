@@ -33,11 +33,10 @@ int get_png_width(struct data_IHDR *buf){
     return buf -> height;
 }
 
-int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long offset, int whence){
-    fseek(fp, offset, whence);
+int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long current_pos){
+    fseek(fp, 16, SEEK_SET);
 
     int fd = fileno( fp );
-
 
     if (read(fd, &(out->width), 4) != 4)
         return 1;
@@ -59,6 +58,10 @@ int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long offset, int whence){
 
     if (read(fd, &(out->interlace), 1) != 1)
         return 1;
+
+    out -> width = ntohl(out -> width);
+    out -> height = ntohl(out -> height);
+    fseek(fp, current_pos, SEEK_SET);
 
     return 0;
 }
