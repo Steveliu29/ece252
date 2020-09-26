@@ -69,7 +69,7 @@ int main(int argc, char **argv){
     if(get_png_data_IHDR(png_attributes, fp, current_pos) == 1){
         printf("Cannot read the data from IHDR chunk.");
         return 1;
-     }
+    }
 
     /* print out the result */
     printf("%s: %d x %d\n", file_name, png_attributes -> width, png_attributes -> height);
