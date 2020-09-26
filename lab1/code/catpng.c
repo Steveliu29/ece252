@@ -1,5 +1,6 @@
 #include <stdio.h>    /* for printf(), perror()...   */
 #include <stdlib.h>   /* for malloc()                */
+#include <errno.h>    /* for errno                   */
 #include "crc.c"      /* for crc()                   */
 #include "zutil.c"
 #include "lab_png.c"  /* simple PNG data structures  */
@@ -7,6 +8,8 @@
 int main(int argc, char **argv);
 void add_png_header(int fd);
 int add_IHDR_chunk(int fd, struct data_IHDR *in);
+int add_IDAT_chunk(int fd, struct chunk* in);
+int add_IEND_chunk(int fd);
 
 int main(int argc, char **argv){
     if (argc == 1){
@@ -21,8 +24,11 @@ int main(int argc, char **argv){
     }
 
     int new_fd = fileno( new_fp );
+
+    /*initializing the header for the PNG*/
     add_png_header(new_fd);
 
+    /*collecting all the IHDR chuncks*/
     data_IHDR_p output_IHDR = malloc(DATA_IHDR_SIZE * sizeof(U8));
 
     for (int i = 1; i < argc; i++){
@@ -57,8 +63,82 @@ int main(int argc, char **argv){
 
     add_IHDR_chunk(new_fd, output_IHDR);
 
+    chunk_p sum_IDAT = malloc (sizeof (struct chunk));
+    U8* inflated_buffer = malloc ( (output_IHDR -> height) * ((output_IHDR -> width) * 4 + 1) );
+    long total_read = 0;
+    U64 len_def = 0;      /* compressed data length                        */
+    U64 len_inf = 0;      /* uncompressed data length                      */
 
-    
+    sum_IDAT -> length = 0;
+    sum_IDAT -> type[0] = 0x49;
+    sum_IDAT -> type[1] = 0x44;
+    sum_IDAT -> type[2] = 0x41;
+    sum_IDAT -> type[3] = 0x54;
+    sum_IDAT -> p_data = NULL;
+    sum_IDAT -> crc = 0;
+
+    for (int i = 1; i < argc; i++){
+
+        char* file_name = argv[i];
+
+        FILE* fp = fopen(file_name, "r");
+        if (fp == NULL){
+            printf("Cannot open %s.", file_name);
+            fclose(new_fp);
+            return 1;
+        }
+
+        int fd = fileno( fp );
+
+        U32 temp_length = 0;
+        U32 temp_type = 0;
+
+        fseek(fp, 33, SEEK_SET);
+        read(fd, &temp_length, 4);
+        temp_length = ntohl(temp_length);
+        sum_IDAT -> length = sum_IDAT -> length + temp_length;
+
+
+        read(fd, &temp_type, 4);
+
+        U8* temp_data = malloc ( temp_length * sizeof(U8) );
+
+        read(fd, temp_data, temp_length);
+
+
+
+        int ret = mem_inf(inflated_buffer + total_read, &len_inf, temp_data, temp_length);
+        if (ret != 0) {
+            /* failure */
+            fprintf(stderr,"mem_def failed. ret = %d.\n", ret);
+            return ret;
+        }
+
+        total_read = total_read + len_inf;
+
+        free(temp_data);
+        fclose(fp);
+    }
+
+    sum_IDAT -> p_data  = malloc(sum_IDAT -> length * sizeof(U8));
+
+    int ret_def = mem_def(sum_IDAT -> p_data, &len_def, inflated_buffer, total_read, Z_DEFAULT_COMPRESSION);
+    if (ret_def != 0) {
+        /* failure */
+        fprintf(stderr,"mem_def failed. ret = %d.\n", ret_def);
+        return ret_def;
+    }
+
+    sum_IDAT -> length = len_def;
+    add_IDAT_chunk(new_fd, sum_IDAT);
+    add_IEND_chunk(new_fd);
+    // printf("%d\n", len_def);
+    // printf("%d\n", sum_IDAT -> length);
+
+
+
+    /*collecting all the IDAT chunks*/
+
     // fseek(new_fp, 0, SEEK_SET);
     // U8 *buf = malloc ( 12 * sizeof(U8) );
     // read(new_fd, buf, 12);
@@ -157,6 +237,61 @@ int add_IHDR_chunk(int fd, struct data_IHDR *in){
 
     free (length_buf);
     free (type_and_data_buf);
+
+    return 0;
+}
+
+int add_IDAT_chunk(int fd, struct chunk* in){
+
+
+    U32 net_length = htonl(in -> length);
+    write(fd, &net_length, 4);
+    write(fd, in -> type, 4);
+    write(fd, in -> p_data, (in -> length));
+
+    U8 *type_and_data_buf = malloc ( (in -> length + 4) * sizeof(U8) );
+    memcpy(type_and_data_buf, &net_length, 4);
+    memcpy(type_and_data_buf + 4, in -> p_data, in -> length);
+
+    int computed_crc = crc(type_and_data_buf, (in -> length +4));
+
+    computed_crc = htonl (computed_crc);
+
+    write(fd, &computed_crc, 4);
+
+    free(type_and_data_buf);
+    return 0;
+}
+
+int add_IEND_chunk(int fd){
+    U8 *length_buf = malloc ( 8 * sizeof(U8) );
+
+    length_buf[0] = 0x00;
+    length_buf[1] = 0x00;
+    length_buf[2] = 0x00;
+    length_buf[3] = 0x00;
+
+    write(fd, length_buf, 4);
+
+    U8 *type_buf = malloc ( 8 * sizeof(U8) );
+
+    type_buf[0] = 0x49;
+    type_buf[1] = 0x45;
+    type_buf[2] = 0x4e;
+    type_buf[3] = 0x44;
+
+    write(fd, type_buf, 4);
+
+    int computed_crc = crc(type_buf, 4);
+
+    computed_crc = htonl (computed_crc);
+
+    // printf("%x\n", computed_crc);
+
+    write(fd, &computed_crc, 4);
+
+    free(length_buf);
+    free(type_buf);
 
     return 0;
 }
