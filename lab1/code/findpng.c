@@ -26,7 +26,8 @@ void findpng(char *path)
     while ((dirent = readdir(dir)) != NULL)
     {
         // Store updated path in pathStorage
-        char pathStorage[1024];
+        unsigned long length = strlen(path) + 2;
+        char pathStorage[1024 + length];
         snprintf(pathStorage, sizeof(pathStorage), "%s/%s", path, dirent->d_name);
 
         // Write information about the file into stat
@@ -39,9 +40,8 @@ void findpng(char *path)
         if (S_ISREG(stat.st_mode))
         {
             FILE *file = fopen(pathStorage, "r");
-            int fd = fileno(file);
             U8 buffer[8];
-            read(fd, buffer, 8);
+            fread(buffer, 1, 8, file);
 
             // Check if it a png file
             if (is_png(buffer) == 0)
