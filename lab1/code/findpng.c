@@ -40,6 +40,11 @@ void findpng(char *path)
         if (S_ISREG(stat.st_mode))
         {
             FILE *file = fopen(path_storage, "r");
+            if (file == NULL)
+            {
+                fclose(file);
+                continue;
+            }
             U8 buffer[8];
             fread(buffer, 1, 8, file);
 
