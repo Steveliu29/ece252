@@ -216,7 +216,7 @@ void add_IDAT_chunk(FILE *fp, struct chunk* in){
 
 
     U8 *type_and_data_buf = malloc ( (in -> length + 4) * sizeof(U8) );
-    memcpy(type_and_data_buf, &in -> type, 4);
+    memcpy(type_and_data_buf, type_buf, 4);
     memcpy(type_and_data_buf + 4, in -> p_data, in -> length);
 
     int computed_crc = crc(type_and_data_buf, (in -> length + 4));
