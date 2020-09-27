@@ -21,14 +21,15 @@ void findpng(char *path)
     struct dirent *dirent;
     struct stat stat;
 
+    // Store updated path in pathStorage
+    unsigned long length = strlen(path) + 2;
+    char *path_storage = malloc((1024 + length) * sizeof(char));
+
 
     // Recursive function
     while ((dirent = readdir(dir)) != NULL)
     {
-        // Store updated path in pathStorage
-        unsigned long length = strlen(path) + 2;
-        char path_storage[1024 + length];
-        snprintf(path_storage, sizeof(path_storage), "%s/%s", path, dirent->d_name);
+        snprintf(path_storage, ((1024 + length) * sizeof(char) - 1), "%s/%s", path, dirent->d_name);
 
         // Write information about the file into stat
         if (lstat(path_storage, &stat) < 0)
@@ -79,6 +80,8 @@ void findpng(char *path)
 
     // Close directory stream
     closedir(dir);
+
+    free(path_storage);
 }
 
 
