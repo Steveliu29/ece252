@@ -39,8 +39,9 @@ int main(int argc, char **argv){
     U32 type_data_length = 0;
     U32 crc_val = 0;
     U32 computed_crc = 0;
+    int i;
 
-    for (int i = 0; i < 3 && is_corrupted == 0; i++)
+    for (i = 0; i < 3 && is_corrupted == 0; i++)
     {
         fread(&length, 1, 4, fp);
         length = ntohl(length);
@@ -74,9 +75,14 @@ int main(int argc, char **argv){
     /* print out the result */
     printf("%s: %d x %d\n", file_name, png_attributes -> width, png_attributes -> height);
 
-    if (is_corrupted ==1)
-        printf("IDAT chunk CRC error: computed %x, expected %x\n", computed_crc, crc_val);
-
+    if (is_corrupted == 1){
+        if (i == 0)
+            printf("IHDR chunk CRC error: computed %x, expected %x\n", computed_crc, crc_val);
+        else if (i == 1)
+            printf("IDAT chunk CRC error: computed %x, expected %x\n", computed_crc, crc_val);
+        else if (i == 2)
+            printf("IDAT chunk CRC error: computed %x, expected %x\n", computed_crc, crc_val);
+    }
     free (png_attributes);
     fclose(fp);
 
