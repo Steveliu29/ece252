@@ -29,12 +29,12 @@ int main(int argc, char **argv){
     add_png_header(new_fp);
 
     /*collecting all the IHDR chuncks*/
-    struct data_IHDR output_IHDR;
-    memset(&output_IHDR, 0, 13);
+    data_IHDR_p output_IHDR = malloc(DATA_IHDR_SIZE * sizeof(U8));
+    memset(output_IHDR, 0, DATA_IHDR_SIZE);
 
     for (int i = 1; i < argc; i++){
-        struct data_IHDR temp;
-        memset(&temp, 0, 13);
+        data_IHDR_p temp = malloc(DATA_IHDR_SIZE * sizeof(U8));
+        memset(temp, 0, DATA_IHDR_SIZE);
 
         char* file_name = argv[i];
 
