@@ -73,10 +73,10 @@ int main(int argc, char **argv){
     U64 len_inf = 0;      /* uncompressed data length                      */
 
     sum_IDAT -> length = 0;
-    sum_IDAT -> type[0] = 0x49;
-    sum_IDAT -> type[1] = 0x44;
-    sum_IDAT -> type[2] = 0x41;
-    sum_IDAT -> type[3] = 0x54;
+//    sum_IDAT -> type[0] = 0x49;
+//    sum_IDAT -> type[1] = 0x44;
+//    sum_IDAT -> type[2] = 0x41;
+//    sum_IDAT -> type[3] = 0x54;
     sum_IDAT -> p_data = NULL;
     sum_IDAT -> crc = 0;
 
@@ -204,7 +204,14 @@ void add_IDAT_chunk(FILE *fp, struct chunk* in){
 
     U32 net_length = htonl(in -> length);
     fwrite(&net_length, 1, 4, fp);
-    fwrite(in->type, 1, 4, fp);
+
+    U8 type_buf[4];
+    type_buf[0] = 0x49;
+    type_buf[1] = 0x44;
+    type_buf[2] = 0x41;
+    type_buf[3] = 0x54;
+    fwrite(type_buf, 1, 4, fp);
+
     fwrite(in->p_data, 1, in->length, fp);
 
 
