@@ -25,7 +25,7 @@ int main(int argc, char **argv){
 
     /* check if the file is png */
     U8 buf[8];
-    read(fd,buf,8);
+    fread(buf, 1, 8, fp);
 
     if (is_png(buf) == 1){
         printf("%s: Not a PNG file\n",file_name);
@@ -42,15 +42,15 @@ int main(int argc, char **argv){
 
     for (int i = 0; i < 3 && is_corrupted == 0; i++)
     {
-        read(fd, &length, 4);
+        fread(&length, 1, 4, fp);
         length = ntohl(length);
         type_data_length = length + 4;
 
         U8* type_and_data = malloc ( (type_data_length) * sizeof(U8) );
 
-        read(fd, type_and_data, type_data_length);
+        fread(type_and_data, 1, type_data_length, fp);
 
-        read(fd, &crc_val, 4);
+        fread(&crc_val, 1, 4, fp);
         crc_val = ntohl(crc_val);
 
         computed_crc = crc(type_and_data, type_data_length);

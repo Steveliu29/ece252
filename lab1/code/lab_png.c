@@ -38,25 +38,25 @@ int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long current_pos){
 
     int fd = fileno( fp );
 
-    if (read(fd, &(out->width), 4) != 4)
+    if (fread(&(out->width), 1, 4, fp) != 4)
         return 1;
 
-    if (read(fd, &(out->height), 4) != 4)
+    if (fread(&(out->height), 1, 4, fp) != 4)
         return 1;
 
-    if (read(fd, &(out->bit_depth), 1) != 1)
+    if (fread(&(out->bit_depth), 1, 1, fp) != 1)
         return 1;
 
-    if (read(fd, &(out->color_type), 1) != 1)
+    if (fread(&(out->color_type), 1, 1, fp) != 1)
         return 1;
 
-    if (read(fd, &(out->compression), 1) != 1)
+    if (fread(&(out->compression), 1, 1, fp) != 1)
         return 1;
 
-    if (read(fd, &(out->filter), 1) != 1)
+    if (fread(&(out->filter), 1, 1, fp) != 1)
         return 1;
 
-    if (read(fd, &(out->interlace), 1) != 1)
+    if (fread(&(out->interlace), 1, 1, fp) != 1)
         return 1;
 
     out -> width = ntohl(out -> width);
