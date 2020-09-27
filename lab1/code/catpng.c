@@ -6,10 +6,10 @@
 #include "lab_png.c"  /* simple PNG data structures  */
 
 int main(int argc, char **argv);
-void add_png_header(int fd);
-int add_IHDR_chunk(int fd, struct data_IHDR *in);
-int add_IDAT_chunk(int fd, struct chunk* in);
-int add_IEND_chunk(int fd);
+void add_png_header(FILE *fp);
+void add_IHDR_chunk(FILE *fp, struct data_IHDR *in);
+void add_IDAT_chunk(FILE *fp, struct chunk* in);
+void add_IEND_chunk(FILE *fp);
 
 int main(int argc, char **argv){
     if (argc == 1){
@@ -26,7 +26,7 @@ int main(int argc, char **argv){
     int new_fd = fileno( new_fp );
 
     /*initializing the header for the PNG*/
-    add_png_header(new_fd);
+    add_png_header(new_fp);
 
     /*collecting all the IHDR chuncks*/
     data_IHDR_p output_IHDR = malloc(DATA_IHDR_SIZE * sizeof(U8));
@@ -37,17 +37,18 @@ int main(int argc, char **argv){
         char* file_name = argv[i];
 
         FILE* fp = fopen(file_name, "r");
-        if (fp == NULL){
-            printf("Cannot open %s.", file_name);
-            fclose(new_fp);
-            return 1;
-        }
+//        if (fp == NULL){
+//            printf("Cannot open %s.", file_name);
+//            fclose(new_fp);
+//            return 1;
+//        }
 
         long current_pos = ftell(fp);
-        if(get_png_data_IHDR(temp, fp, current_pos) == 1){
-            printf("Cannot read the data from IHDR chunk.");
-            return 1;
-        }
+        get_png_data_IHDR(temp, fp, current_pos);
+//        if(get_png_data_IHDR(temp, fp, current_pos) == 1){
+//            printf("Cannot read the data from IHDR chunk.");
+//            return 1;
+//        }
 
         output_IHDR -> width = temp -> width; /*width does not get added since the width will stay the same*/
         output_IHDR -> height = output_IHDR -> height + (temp -> height);
@@ -61,7 +62,7 @@ int main(int argc, char **argv){
         free(temp);
     }
 
-    add_IHDR_chunk(new_fd, output_IHDR);
+    add_IHDR_chunk(new_fp, output_IHDR);
 
     chunk_p sum_IDAT = malloc (sizeof (struct chunk));
     U8* inflated_buffer = malloc ( (output_IHDR -> height) * ((output_IHDR -> width) * 4 + 1) );
@@ -82,11 +83,11 @@ int main(int argc, char **argv){
         char* file_name = argv[i];
 
         FILE* fp = fopen(file_name, "r");
-        if (fp == NULL){
-            printf("Cannot open %s.", file_name);
-            fclose(new_fp);
-            return 1;
-        }
+//        if (fp == NULL){
+//            printf("Cannot open %s.", file_name);
+//            fclose(new_fp);
+//            return 1;
+//        }
 
         int fd = fileno( fp );
 
@@ -94,25 +95,24 @@ int main(int argc, char **argv){
         U32 temp_type = 0;
 
         fseek(fp, 33, SEEK_SET);
-        read(fd, &temp_length, 4);
+        fread(&temp_length, 1, 4, fp);
+
         temp_length = ntohl(temp_length);
         sum_IDAT -> length = sum_IDAT -> length + temp_length;
 
-
-        read(fd, &temp_type, 4);
+        fread(&temp_type, 1, 4, fp);
 
         U8* temp_data = malloc ( temp_length * sizeof(U8) );
 
-        read(fd, temp_data, temp_length);
-
+        fread(temp_data, 1, temp_length, fp);
 
 
         int ret = mem_inf(inflated_buffer + total_read, &len_inf, temp_data, temp_length);
-        if (ret != 0) {
-            /* failure */
-            fprintf(stderr,"mem_def failed. ret = %d.\n", ret);
-            return ret;
-        }
+//        if (ret != 0) {
+//            /* failure */
+//            fprintf(stderr,"mem_def failed. ret = %d.\n", ret);
+//            return ret;
+//        }
 
         total_read = total_read + len_inf;
 
@@ -123,56 +123,27 @@ int main(int argc, char **argv){
     sum_IDAT -> p_data  = malloc(sum_IDAT -> length * sizeof(U8));
 
     int ret_def = mem_def(sum_IDAT -> p_data, &len_def, inflated_buffer, total_read, Z_DEFAULT_COMPRESSION);
-    if (ret_def != 0) {
-        /* failure */
-        fprintf(stderr,"mem_def failed. ret = %d.\n", ret_def);
-        return ret_def;
-    }
+//    if (ret_def != 0) {
+//        /* failure */
+//        fprintf(stderr,"mem_def failed. ret = %d.\n", ret_def);
+//        return ret_def;
+//    }
 
     sum_IDAT -> length = len_def;
-    add_IDAT_chunk(new_fd, sum_IDAT);
-    add_IEND_chunk(new_fd);
-     // printf("%d\n", len_def);
-     // printf("%d\n", sum_IDAT -> length);
+    add_IDAT_chunk(new_fp, sum_IDAT);
+    add_IEND_chunk(new_fp);
 
-
-
-    /*collecting all the IDAT chunks*/
-
-    // fseek(new_fp, 0, SEEK_SET);
-    // U8 *buf = malloc ( 12 * sizeof(U8) );
-    // read(new_fd, buf, 12);
-    //
-    // for (int i = 0; i < 12; i++){
-    //     printf("%x\n", buf[i]);
-    // }
-
-
-
-
-
-
-
-
-    // for (int i = 1; i < argc; i++){
-    //
-    //     char* file_name = argv[i];
-    //
-    //     FILE* fp = fopen(file_name, "r");
-    //     if (fp == NULL){
-    //         printf("Cannot open %s.", file_name);
-    //         fclose(new_fp);
-    //         return 1;
-    //     }
-    //
-    //
-    // }
+    free(output_IHDR);
+    free(sum_IDAT->p_data);
+    free(sum_IDAT);
+    free(inflated_buffer);
 
     fclose (new_fp);
+
     return 0;
 }
 
-void add_png_header(int fd){
+void add_png_header(FILE *fp){
     U8 *png_header = malloc ( 8 * sizeof(U8) ); /*allocate 8 bytes to check*/
 
     png_header[0] = 0x89;
@@ -184,11 +155,12 @@ void add_png_header(int fd){
     png_header[6] = 0x1A;
     png_header[7] = 0x0A;
 
-    write(fd, png_header, 8);
+    fwrite(png_header, 1, 8, fp);
+
     free (png_header);
 }
 
-int add_IHDR_chunk(int fd, struct data_IHDR *in){
+void add_IHDR_chunk(FILE *fp, struct data_IHDR *in){
     U8 *length_buf = malloc ( 4 * sizeof(U8) );
 
     length_buf[0] = 0x00;
@@ -196,18 +168,10 @@ int add_IHDR_chunk(int fd, struct data_IHDR *in){
     length_buf[2] = 0x00;
     length_buf[3] = 0x0d;
 
-    write(fd, length_buf, 4);
+    fwrite(length_buf, 1 , 4, fp);
 
     U32 net_width = htonl(in -> width);
     U32 net_height = htonl(in -> height);
-
-    // write(fd, &net_width, 4);
-    // write(fd, &net_height, 4);
-    // write(fd, &(in -> bit_depth), 1);
-    // write(fd, &(in -> color_type), 1);
-    // write(fd, &(in -> compression), 1);
-    // write(fd, &(in -> filter), 1);
-    // write(fd, &(in -> interlace), 1);
 
     U8 *type_and_data_buf = malloc ( 17 * sizeof(U8) );
 
@@ -226,28 +190,26 @@ int add_IHDR_chunk(int fd, struct data_IHDR *in){
 
     // for (int i = 0; i < 17; i++)
     // printf("%x\n", type_and_data_buf[i]);
-    write(fd, type_and_data_buf, 17);
+    fwrite(type_and_data_buf, 1, 17, fp);
 
     int computed_crc = crc(type_and_data_buf, 17);
-    // printf("%d\n", computed_crc);
 
     computed_crc = htonl (computed_crc);
 
-    write(fd, &computed_crc, 4);
+    fwrite(&computed_crc, 1, 4, fp);
 
     free (length_buf);
     free (type_and_data_buf);
-
-    return 0;
 }
 
-int add_IDAT_chunk(int fd, struct chunk* in){
+void add_IDAT_chunk(FILE *fp, struct chunk* in){
 
 
     U32 net_length = htonl(in -> length);
-    write(fd, &net_length, 4);
-    write(fd, in -> type, 4);
-    write(fd, in -> p_data, (in -> length));
+    fwrite(&net_length, 1, 4, fp);
+    fwrite(in->type, 1, 4, fp);
+    fwrite(in->p_data, 1, in->length, fp);
+
 
     U8 *type_and_data_buf = malloc ( (in -> length + 4) * sizeof(U8) );
     memcpy(type_and_data_buf, &in -> type, 4);
@@ -257,30 +219,29 @@ int add_IDAT_chunk(int fd, struct chunk* in){
 
     computed_crc = htonl (computed_crc);
 
-    write(fd, &computed_crc, 4);
+    fwrite(&computed_crc, 1, 4, fp);
 
     free(type_and_data_buf);
-    return 0;
 }
 
-int add_IEND_chunk(int fd){
-    U8 *length_buf = malloc ( 8 * sizeof(U8) );
+void add_IEND_chunk(FILE *fp){
+    U8 *length_buf = malloc ( 4 * sizeof(U8) );
 
     length_buf[0] = 0x00;
     length_buf[1] = 0x00;
     length_buf[2] = 0x00;
     length_buf[3] = 0x00;
 
-    write(fd, length_buf, 4);
+    fwrite(length_buf, 1, 4, fp);
 
-    U8 *type_buf = malloc ( 8 * sizeof(U8) );
+    U8 *type_buf = malloc ( 4 * sizeof(U8) );
 
     type_buf[0] = 0x49;
     type_buf[1] = 0x45;
     type_buf[2] = 0x4e;
     type_buf[3] = 0x44;
 
-    write(fd, type_buf, 4);
+    fwrite(type_buf, 1, 4, fp);
 
     int computed_crc = crc(type_buf, 4);
 
@@ -288,10 +249,8 @@ int add_IEND_chunk(int fd){
 
     // printf("%x\n", computed_crc);
 
-    write(fd, &computed_crc, 4);
+    fwrite(&computed_crc, 1, 4, fp);
 
     free(length_buf);
     free(type_buf);
-
-    return 0;
 }
