@@ -30,9 +30,11 @@ int main(int argc, char **argv){
 
     /*collecting all the IHDR chuncks*/
     data_IHDR_p output_IHDR = malloc(DATA_IHDR_SIZE * sizeof(U8));
+    memset(output_IHDR, 0, 13);
 
     for (int i = 1; i < argc; i++){
         data_IHDR_p temp = malloc(DATA_IHDR_SIZE * sizeof(U8));
+        memset(temp, 0, 13);
 
         char* file_name = argv[i];
 
@@ -144,7 +146,7 @@ int main(int argc, char **argv){
 }
 
 void add_png_header(FILE *fp){
-    U8 *png_header = malloc ( 8 * sizeof(U8) ); /*allocate 8 bytes to check*/
+    U8 png_header[8];
 
     png_header[0] = 0x89;
     png_header[1] = 0x50;
@@ -156,12 +158,10 @@ void add_png_header(FILE *fp){
     png_header[7] = 0x0A;
 
     fwrite(png_header, 1, 8, fp);
-
-    free (png_header);
 }
 
 void add_IHDR_chunk(FILE *fp, struct data_IHDR *in){
-    U8 *length_buf = malloc ( 4 * sizeof(U8) );
+    U8 length_buf[4];
 
     length_buf[0] = 0x00;
     length_buf[1] = 0x00;
@@ -173,7 +173,7 @@ void add_IHDR_chunk(FILE *fp, struct data_IHDR *in){
     U32 net_width = htonl(in -> width);
     U32 net_height = htonl(in -> height);
 
-    U8 *type_and_data_buf = malloc ( 17 * sizeof(U8) );
+    U8 type_and_data_buf[17];
 
     type_and_data_buf[0] = 0x49;
     type_and_data_buf[1] = 0x48;
@@ -197,9 +197,6 @@ void add_IHDR_chunk(FILE *fp, struct data_IHDR *in){
     computed_crc = htonl (computed_crc);
 
     fwrite(&computed_crc, 1, 4, fp);
-
-    free (length_buf);
-    free (type_and_data_buf);
 }
 
 void add_IDAT_chunk(FILE *fp, struct chunk* in){
@@ -225,7 +222,7 @@ void add_IDAT_chunk(FILE *fp, struct chunk* in){
 }
 
 void add_IEND_chunk(FILE *fp){
-    U8 *length_buf = malloc ( 4 * sizeof(U8) );
+    U8 length_buf[4];
 
     length_buf[0] = 0x00;
     length_buf[1] = 0x00;
@@ -234,7 +231,7 @@ void add_IEND_chunk(FILE *fp){
 
     fwrite(length_buf, 1, 4, fp);
 
-    U8 *type_buf = malloc ( 4 * sizeof(U8) );
+    U8 type_buf[4];
 
     type_buf[0] = 0x49;
     type_buf[1] = 0x45;
@@ -250,7 +247,4 @@ void add_IEND_chunk(FILE *fp){
     // printf("%x\n", computed_crc);
 
     fwrite(&computed_crc, 1, 4, fp);
-
-    free(length_buf);
-    free(type_buf);
 }
