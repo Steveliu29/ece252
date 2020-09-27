@@ -29,10 +29,12 @@ int main(int argc, char **argv){
     add_png_header(new_fp);
 
     /*collecting all the IHDR chuncks*/
-    data_IHDR_p output_IHDR = malloc(DATA_IHDR_SIZE * sizeof(U8));
+    struct data_IHDR output_IHDR;
+    memset(&output_IHDR, 0, 13);
 
     for (int i = 1; i < argc; i++){
-        data_IHDR_p temp = malloc(DATA_IHDR_SIZE * sizeof(U8));
+        struct data_IHDR temp;
+        memset(&temp, 0, 13);
 
         char* file_name = argv[i];
 
@@ -44,28 +46,27 @@ int main(int argc, char **argv){
 //        }
 
         long current_pos = ftell(fp);
-        get_png_data_IHDR(temp, fp, current_pos);
+        get_png_data_IHDR(&temp, fp, current_pos);
 //        if(get_png_data_IHDR(temp, fp, current_pos) == 1){
 //            printf("Cannot read the data from IHDR chunk.");
 //            return 1;
 //        }
 
-        output_IHDR -> width = temp -> width; /*width does not get added since the width will stay the same*/
-        output_IHDR -> height = output_IHDR -> height + (temp -> height);
-        output_IHDR -> bit_depth = temp -> bit_depth;
-        output_IHDR -> color_type = temp -> color_type;
-        output_IHDR -> compression = temp -> compression;
-        output_IHDR -> filter = temp -> filter;
-        output_IHDR -> interlace = temp -> interlace;
+        output_IHDR.width = temp.width; /*width does not get added since the width will stay the same*/
+        output_IHDR.height = output_IHDR.height + (temp.height);
+        output_IHDR.bit_depth = temp.bit_depth;
+        output_IHDR.color_type = temp.color_type;
+        output_IHDR.compression = temp.compression;
+        output_IHDR.filter = temp.filter;
+        output_IHDR.interlace = temp.interlace;
 
         fclose(fp);
-        free(temp);
     }
 
-    add_IHDR_chunk(new_fp, output_IHDR);
+    add_IHDR_chunk(new_fp, &output_IHDR);
 
     chunk_p sum_IDAT = malloc (sizeof (struct chunk));
-    U8* inflated_buffer = malloc ( (output_IHDR -> height) * ((output_IHDR -> width) * 4 + 1) );
+    U8* inflated_buffer = malloc ( (output_IHDR.height) * ((output_IHDR.width) * 4 + 1) );
     long total_read = 0;
     U64 len_def = 0;      /* compressed data length                        */
     U64 len_inf = 0;      /* uncompressed data length                      */
@@ -133,7 +134,6 @@ int main(int argc, char **argv){
     add_IDAT_chunk(new_fp, sum_IDAT);
     add_IEND_chunk(new_fp);
 
-    free(output_IHDR);
     free(sum_IDAT->p_data);
     free(sum_IDAT);
     free(inflated_buffer);
@@ -144,7 +144,7 @@ int main(int argc, char **argv){
 }
 
 void add_png_header(FILE *fp){
-    U8 *png_header = malloc ( 8 * sizeof(U8) ); /*allocate 8 bytes to check*/
+    U8 png_header[8];
 
     png_header[0] = 0x89;
     png_header[1] = 0x50;
@@ -156,12 +156,10 @@ void add_png_header(FILE *fp){
     png_header[7] = 0x0A;
 
     fwrite(png_header, 1, 8, fp);
-
-    free (png_header);
 }
 
 void add_IHDR_chunk(FILE *fp, struct data_IHDR *in){
-    U8 *length_buf = malloc ( 4 * sizeof(U8) );
+    U8 length_buf[4];
 
     length_buf[0] = 0x00;
     length_buf[1] = 0x00;
@@ -173,7 +171,7 @@ void add_IHDR_chunk(FILE *fp, struct data_IHDR *in){
     U32 net_width = htonl(in -> width);
     U32 net_height = htonl(in -> height);
 
-    U8 *type_and_data_buf = malloc ( 17 * sizeof(U8) );
+    U8 type_and_data_buf[17];
 
     type_and_data_buf[0] = 0x49;
     type_and_data_buf[1] = 0x48;
@@ -197,9 +195,6 @@ void add_IHDR_chunk(FILE *fp, struct data_IHDR *in){
     computed_crc = htonl (computed_crc);
 
     fwrite(&computed_crc, 1, 4, fp);
-
-    free (length_buf);
-    free (type_and_data_buf);
 }
 
 void add_IDAT_chunk(FILE *fp, struct chunk* in){
@@ -225,7 +220,7 @@ void add_IDAT_chunk(FILE *fp, struct chunk* in){
 }
 
 void add_IEND_chunk(FILE *fp){
-    U8 *length_buf = malloc ( 4 * sizeof(U8) );
+    U8 length_buf[4];
 
     length_buf[0] = 0x00;
     length_buf[1] = 0x00;
@@ -234,7 +229,7 @@ void add_IEND_chunk(FILE *fp){
 
     fwrite(length_buf, 1, 4, fp);
 
-    U8 *type_buf = malloc ( 4 * sizeof(U8) );
+    U8 type_buf[4];
 
     type_buf[0] = 0x49;
     type_buf[1] = 0x45;
@@ -250,7 +245,4 @@ void add_IEND_chunk(FILE *fp){
     // printf("%x\n", computed_crc);
 
     fwrite(&computed_crc, 1, 4, fp);
-
-    free(length_buf);
-    free(type_buf);
 }
