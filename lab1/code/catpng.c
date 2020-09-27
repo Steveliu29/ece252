@@ -30,11 +30,11 @@ int main(int argc, char **argv){
 
     /*collecting all the IHDR chuncks*/
     data_IHDR_p output_IHDR = malloc(DATA_IHDR_SIZE * sizeof(U8));
-    memset(output_IHDR, 0, DATA_IHDR_SIZE);
+    memset(output_IHDR, 0, 13);
 
     for (int i = 1; i < argc; i++){
         data_IHDR_p temp = malloc(DATA_IHDR_SIZE * sizeof(U8));
-        memset(temp, 0, DATA_IHDR_SIZE);
+        memset(temp, 0, 13);
 
         char* file_name = argv[i];
 
@@ -46,27 +46,28 @@ int main(int argc, char **argv){
 //        }
 
         long current_pos = ftell(fp);
-        get_png_data_IHDR(&temp, fp, current_pos);
+        get_png_data_IHDR(temp, fp, current_pos);
 //        if(get_png_data_IHDR(temp, fp, current_pos) == 1){
 //            printf("Cannot read the data from IHDR chunk.");
 //            return 1;
 //        }
 
-        output_IHDR.width = temp.width; /*width does not get added since the width will stay the same*/
-        output_IHDR.height = output_IHDR.height + (temp.height);
-        output_IHDR.bit_depth = temp.bit_depth;
-        output_IHDR.color_type = temp.color_type;
-        output_IHDR.compression = temp.compression;
-        output_IHDR.filter = temp.filter;
-        output_IHDR.interlace = temp.interlace;
+        output_IHDR -> width = temp -> width; /*width does not get added since the width will stay the same*/
+        output_IHDR -> height = output_IHDR -> height + (temp -> height);
+        output_IHDR -> bit_depth = temp -> bit_depth;
+        output_IHDR -> color_type = temp -> color_type;
+        output_IHDR -> compression = temp -> compression;
+        output_IHDR -> filter = temp -> filter;
+        output_IHDR -> interlace = temp -> interlace;
 
         fclose(fp);
+        free(temp);
     }
 
-    add_IHDR_chunk(new_fp, &output_IHDR);
+    add_IHDR_chunk(new_fp, output_IHDR);
 
     chunk_p sum_IDAT = malloc (sizeof (struct chunk));
-    U8* inflated_buffer = malloc ( (output_IHDR.height) * ((output_IHDR.width) * 4 + 1) );
+    U8* inflated_buffer = malloc ( (output_IHDR -> height) * ((output_IHDR -> width) * 4 + 1) );
     long total_read = 0;
     U64 len_def = 0;      /* compressed data length                        */
     U64 len_inf = 0;      /* uncompressed data length                      */
@@ -134,6 +135,7 @@ int main(int argc, char **argv){
     add_IDAT_chunk(new_fp, sum_IDAT);
     add_IEND_chunk(new_fp);
 
+    free(output_IHDR);
     free(sum_IDAT->p_data);
     free(sum_IDAT);
     free(inflated_buffer);
