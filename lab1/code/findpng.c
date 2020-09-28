@@ -9,12 +9,12 @@
 
 
 // Function declarations
-void findpng(char *path);
+void findpng(char *path, int *flag);
 int main(int argc, char **argv);
 
 
 // Function specifications
-void findpng(char *path)
+void findpng(char *path, int *flag)
 {
     // Variable
     DIR *dir = opendir(path);
@@ -53,6 +53,11 @@ void findpng(char *path)
             if (is_png(buffer) == 0)
             {
                 printf("%s/%s\n", path, dirent->d_name);
+
+                if (*flag == 0)
+                {
+                    *flag = 1;
+                }
             }
 
             fclose(file);
@@ -70,7 +75,7 @@ void findpng(char *path)
                 continue;
             }
 
-            findpng(path_storage);
+            findpng(path_storage, flag);
         }
         // Symbolic link
         else {
@@ -89,6 +94,8 @@ int main(int argc, char **argv)
 {
     // Variables
     DIR *dir;
+    int *flag = malloc(sizeof(int));
+    *flag = 0;
 
 
     // Error detections
@@ -109,7 +116,11 @@ int main(int argc, char **argv)
 
 
     // There should be error when calling the function
-    findpng(argv[1]);
+    findpng(argv[1], flag);
+    if (*flag == 0)
+    {
+        printf("findpng: No PNG file found\n");
+    }
 
 
     // Close directory stream
@@ -118,6 +129,8 @@ int main(int argc, char **argv)
         printf("closedir");
         exit(3);
     }
+
+    free(flag);
 
     return 0;
 }
