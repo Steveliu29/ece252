@@ -122,7 +122,7 @@ int main(int argc, char **argv){
         fclose(fp);
     }
 
-    sum_IDAT -> p_data  = malloc(sum_IDAT -> length * sizeof(U8));
+    sum_IDAT -> p_data  = malloc(total_read);
 
     int ret_def = mem_def(sum_IDAT -> p_data, &len_def, inflated_buffer, total_read, Z_DEFAULT_COMPRESSION);
 //    if (ret_def != 0) {
