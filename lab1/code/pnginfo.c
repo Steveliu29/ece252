@@ -17,7 +17,7 @@ int main(int argc, char **argv){
     FILE* fp = fopen(file_name, "r");
 
     if (fp == NULL){
-        printf("Target file doesn't exist.");
+        printf("Target file doesn't exist.\n");
         return 1;
     }
 
@@ -68,7 +68,7 @@ int main(int argc, char **argv){
     long current_pos = ftell(fp);
 
     if(get_png_data_IHDR(png_attributes, fp, current_pos) == 1){
-        printf("Cannot read the data from IHDR chunk.");
+        printf("Cannot read the data from IHDR chunk.\n");
         return 1;
     }
 
@@ -76,12 +76,12 @@ int main(int argc, char **argv){
     printf("%s: %d x %d\n", file_name, png_attributes -> width, png_attributes -> height);
 
     if (is_corrupted == 1){
-        if (i == 0)
+        if (i == 1)
             printf("IHDR chunk CRC error: computed %x, expected %x\n", computed_crc, crc_val);
-        else if (i == 1)
-            printf("IDAT chunk CRC error: computed %x, expected %x\n", computed_crc, crc_val);
         else if (i == 2)
             printf("IDAT chunk CRC error: computed %x, expected %x\n", computed_crc, crc_val);
+        else if (i == 3)
+            printf("IEND chunk CRC error: computed %x, expected %x\n", computed_crc, crc_val);
     }
     free (png_attributes);
     fclose(fp);
