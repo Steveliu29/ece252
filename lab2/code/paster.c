@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include "helper.c"
 #include "lab_png.c"
+#include "catpng.c"
 
 int main(int argc, char **argv);
 void get_all_frags(RECV_BUF* buf_arr, int* png_left, int img_num);
@@ -57,7 +58,7 @@ int main(int argc, char **argv)
 
 
     /*Add changes here*/
-
+    cat_png(buf_arr,50);
 
 
     for (int i = 0; i < 50; i++)

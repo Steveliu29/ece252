@@ -33,11 +33,56 @@ int get_png_width(struct data_IHDR *buf){
     return buf -> height;
 }
 
-int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long current_pos){
-    fseek(fp, 16, SEEK_SET);
+int get_png_data_IHDR(struct data_IHDR *out, RECV_BUF buf_read){
+    long pos = 16;
 
-    int fd = fileno( fp );
+    memcpy(&(out->width),(buf_read.buf + pos), 4);
+    // out->width = out->width + buf_read.buf[pos];
+    // printf("added: %d\n", buf_read.buf[pos]);
+    // pos++;
+    // for (int i = 0; i < 3; i++){
+    //     out->width = out->width << 8;
+    //     out->width = out->width | buf_read.buf[pos];
+    //     printf("added: %d\n", buf_read.buf[pos]);
+    //     pos++;
+    // }
+    pos = pos + 4;
+    memcpy(&(out->height),(buf_read.buf + pos), 4);
 
+    pos = pos + 4;
+    // out->height = out->height + buf_read.buf[pos];
+    // pos++;
+    //
+    // for (int i = 0; i < 3; i++){
+    //     out->height = out->height << 8;
+    //     out->height = out->height | buf_read.buf[pos];
+    //     pos++;
+    // }
+
+
+    out->bit_depth = buf_read.buf[pos];
+    pos++;
+
+    out->color_type = buf_read.buf[pos];
+    pos++;
+
+    out->compression = buf_read.buf[pos];
+    pos++;
+
+    out->filter = buf_read.buf[pos];
+    pos++;
+
+    out->interlace = buf_read.buf[pos];
+    pos++;
+
+    // printf("width: %d\n", out->width);
+    // printf("height: %d\n", out->height);
+    // printf("bit_depth: %d\n", out->bit_depth);
+    // printf("color_type: %d\n", out->color_type);
+    // printf("compression: %d\n", out->compression);
+    // printf("filter: %d\n", out->filter);
+    // printf("interlace: %d\n", out->interlace);
+    /*
     if (fread(&(out->width), 1, 4, fp) != 4)
         return 1;
 
@@ -58,10 +103,10 @@ int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long current_pos){
 
     if (fread(&(out->interlace), 1, 1, fp) != 1)
         return 1;
+    */
 
     out -> width = ntohl(out -> width);
     out -> height = ntohl(out -> height);
-    fseek(fp, current_pos, SEEK_SET);
 
     return 0;
 }
