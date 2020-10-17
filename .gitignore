@@ -41,6 +41,7 @@
 .DS_Store
 
 # CLion settings
+.idea
 lab1/.idea
 lab1/cmake-build-debug
 lab1/CMakeLists.txt
