@@ -33,7 +33,8 @@
 #include <unistd.h>
 #include <curl/curl.h>
 
-#define IMG_URL "http://ece252-1.uwaterloo.ca:2520/image?img="
+#define IMG_URL_FIRST "http://ece252-"
+#define IMG_URL_SECOND ".uwaterloo.ca:2520/image?img="
 #define DUM_URL "https://example.com/"
 #define ECE252_HEADER "X-Ece252-Fragment: "
 #define BUF_SIZE 1048576  /* 1024*1024 = 1M */
@@ -58,7 +59,7 @@ size_t write_cb_curl3(char *p_recv, size_t size, size_t nmemb, void *p_userdata)
 int recv_buf_init(RECV_BUF *ptr, size_t max_size);
 int recv_buf_cleanup(RECV_BUF *ptr);
 int write_file(const char *path, const void *in, size_t len);
-int get_png_frag(int img_num, RECV_BUF* buf_cpy);
+int get_png_frag(int server_num, int img_num, RECV_BUF* buf_cpy);
 
 
 /**
@@ -194,7 +195,7 @@ int write_file(const char *path, const void *in, size_t len)
 }
 
 
-int get_png_frag(int img_num, RECV_BUF* buf_cpy){
+int get_png_frag(int server_num, int img_num, RECV_BUF* buf_cpy){
     CURL *curl_handle;
     CURLcode res;
     char url[256];
@@ -204,12 +205,16 @@ int get_png_frag(int img_num, RECV_BUF* buf_cpy){
 
     recv_buf_init(&recv_buf, BUF_SIZE);
 
-    memset(url, 0, 256);
-    strcpy(url, IMG_URL);
-    int pos = strlen(IMG_URL);
-    url[pos] = img_num + '0';
 
-    /*printf("%s: URL is %s\n", argv[0], url);*/
+    memset(url, 0, 256);
+    strcpy(url, IMG_URL_FIRST);
+    int server_pos = strlen(IMG_URL_FIRST);
+    url[server_pos] = server_num + '0';
+    strcat(url, IMG_URL_SECOND);
+    int img_pos = strlen(IMG_URL_FIRST) + strlen(IMG_URL_SECOND) + 1;
+    url[img_pos] = img_num + '0';
+
+    printf("%s\n", url);
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
