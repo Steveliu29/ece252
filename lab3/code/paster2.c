@@ -266,9 +266,9 @@ void produce(char** url, RECV_BUF *p_shm_recv_buf, CTRL_BLK *p_control ,int img_
     part_num = p_control -> produce_counter;
     p_control -> produce_counter = p_control -> produce_counter + 1;
     sem_post(&(p_control -> mutex));
-    server_num = part_num % 3;
+    server_num = part_num % 3 + 1;
 
-    while (part_num != 50){
+    while (part_num <= 50){
 
         set_URL(url, img_num, server_num, part_num);
 
@@ -343,6 +343,7 @@ int main( int argc, char** argv )
     int wait_time;
     int img_num;
     CTRL_BLK *p_control;
+    RECV_BUF *p_shm_output_buf;
 
     if (argc != 6) {
         printf("Usage: ./paster2 <B> <P> <C> <X> <N>\n");
@@ -380,6 +381,18 @@ int main( int argc, char** argv )
 
     p_control = shmat(CTRL_shmid, NULL, 0);
     shm_CTRL_BLK_init(p_control, buffer_size);
+
+    int output_shmid;
+    int output_shm_size = 50 * sizeof_shm_recv_buf(IMG_SIZE);
+    printf("output_shm_size = %d.\n", output_shm_size);
+    output_shmid = shmget(IPC_PRIVATE, output_shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+    if ( output_shmid == -1 ) {
+        perror("shmget");
+        abort();
+    }
+
+    p_shm_output_buf = shmat(output_shmid, NULL, 0);
+    shm_recv_buf_init(p_shm_output_buf, 50, IMG_SIZE);
 
     for (int i = 0; i < num_producer; i++)
         cpid = fork();
