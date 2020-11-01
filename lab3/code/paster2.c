@@ -233,7 +233,12 @@ void set_URL(char** url, int img_num, int server_num, int part_num){
     *url[img_pos] = img_num + '0';
     strcat(*url, IMG_URL_THIRD);
     int part_pos = strlen(IMG_URL_FIRST) + strlen(IMG_URL_SECOND) + strlen(IMG_URL_THIRD) + 2;
-    *url[part_pos] = part_num + '0';
+    int num2 = part_num % 10;
+    part_num = part_num / 10;
+    int num1 = part_num % 10;
+    *url[part_pos] = num1 + '0';
+    part_pos++;
+    *url[part_pos] = num2 + '0';
 }
 
 int shm_CTRL_BLK_init(CTRL_BLK* ptr, int buffer_size)
