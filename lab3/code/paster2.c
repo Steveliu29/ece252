@@ -255,10 +255,12 @@ int shm_CTRL_BLK_init(CTRL_BLK* ptr, int buffer_size)
     return 0;
 }
 
-void produce(char** url, RECV_BUF *p_shm_recv_buf, CTRL_BLK *p_control ,int img_num){
+void produce(char** url, RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num){
     RECV_BUF temp;
     int part_num;
     int server_num;
+
+    temp.buf = malloc (IMG_SIZE);
 
     sem_wait(&(p_control -> mutex));
     part_num = p_control -> produce_counter;
@@ -267,7 +269,7 @@ void produce(char** url, RECV_BUF *p_shm_recv_buf, CTRL_BLK *p_control ,int img_
     server_num = part_num % 3 + 1;
 
     while (part_num <= 50){
-
+        memset(temp.buf, 0, IMG_SIZE);
         set_URL(url, img_num, server_num, part_num);
 
         curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -323,6 +325,8 @@ void produce(char** url, RECV_BUF *p_shm_recv_buf, CTRL_BLK *p_control ,int img_
         sem_post(&(p_control -> mutex));
         server_num = part_num % 3;
     }
+
+    free(temp.buf);
 }
 
 int main( int argc, char** argv )
@@ -401,7 +405,8 @@ int main( int argc, char** argv )
 
     if ( cpid == 0 ) {          /* child proc download */
         produce(&url, p_shm_recv_buf, p_control, img_num);
-        shmdt(p_shm_recv_buf);
+        for (int i = 0; i < buffer_size; i++)
+            shmdt(p_shm_recv_buf[i]);
         shmdt(p_control);
         exit(0);
     } else if ( cpid > 0 ) {    /* parent proc */
