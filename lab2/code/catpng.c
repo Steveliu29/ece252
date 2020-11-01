@@ -26,7 +26,6 @@ int cat_png(RECV_BUF* buf_arr, int arr_size){
     /*collecting all the IHDR chuncks*/
     data_IHDR_p output_IHDR = malloc(DATA_IHDR_SIZE * sizeof(U8));
     memset(output_IHDR, 0, DATA_IHDR_SIZE);
-    printf("test1\n");
     for (int i = 0; i < arr_size; i++){
         data_IHDR_p temp = malloc(DATA_IHDR_SIZE * sizeof(U8));
         memset(temp, 0, DATA_IHDR_SIZE);
@@ -43,7 +42,6 @@ int cat_png(RECV_BUF* buf_arr, int arr_size){
 
         free(temp);
     }
-    printf("test2\n");
     add_IHDR_chunk(new_fp, output_IHDR);
 
     chunk_p sum_IDAT = malloc (sizeof (struct chunk));
@@ -59,34 +57,26 @@ int cat_png(RECV_BUF* buf_arr, int arr_size){
 //    sum_IDAT -> type[3] = 0x54;
     sum_IDAT -> p_data = NULL;
     sum_IDAT -> crc = 0;
-    printf("test3\n");
     for (int i = 0; i < arr_size; i++){
-        printf("buf %d size: %d\n", i,buf_arr[i].size);
-        printf("buf %d max size: %d\n", i,buf_arr[i].max_size);
         U32 temp_length = 0;
         U32 temp_type = 0;
 
         long pos = 33;
-        printf("test6\n");
 
         memcpy(&(temp_length),(buf_arr[i].buf + pos), 4);
 
         pos = pos + 4;
 
-        printf("test7\n");
         // fseek(fp, 33, SEEK_SET);
         // fread(&temp_length, 1, 4, fp);
         //printf("%d\n",temp_length);
         temp_length = ntohl(temp_length);
         sum_IDAT -> length = sum_IDAT -> length + temp_length;
-        printf("%d\n",temp_length);
-        printf("test8\n");
 
         memcpy(&(temp_type),(buf_arr[i].buf + pos), 4);
 
         pos = pos + 4;
 
-        printf("test9\n");
         //fread(&temp_type, 1, 4, fp);
 
         U8* temp_data = malloc ( temp_length * sizeof(U8) );
@@ -99,20 +89,17 @@ int cat_png(RECV_BUF* buf_arr, int arr_size){
 
       //  fread(temp_data, 1, temp_length, fp);
 
-      printf("test10\n");
         int ret = mem_inf(inflated_buffer + total_read, &len_inf, temp_data, temp_length);
 //        if (ret != 0) {
 //            /* failure */
 //            fprintf(stderr,"mem_def failed. ret = %d.\n", ret);
 //            return ret;
 //        }
-      printf("test11\n");
         total_read = total_read + len_inf;
 
         free(temp_data);
     //    fclose(fp);
     }
-    printf("test4\n");
     sum_IDAT -> p_data  = malloc(total_read);
 
     int ret_def = mem_def(sum_IDAT -> p_data, &len_def, inflated_buffer, total_read, Z_DEFAULT_COMPRESSION);
@@ -132,7 +119,6 @@ int cat_png(RECV_BUF* buf_arr, int arr_size){
     free(inflated_buffer);
 
     fclose (new_fp);
-    printf("test5\n");
     return 0;
 }
 
