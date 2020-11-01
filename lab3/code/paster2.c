@@ -172,21 +172,19 @@ int sizeof_shm_recv_buf(size_t nbytes)
  *       caller is also responsible for releasing the memory.
  */
 
-int shm_recv_buf_init(RECV_BUF *ptr, int buffer_size, size_t nbytes)
-{
-    if ( ptr == NULL ) {
-        return 1;
-    }
+ int shm_recv_buf_init(RECV_BUF *ptr, size_t nbytes)
+ {
+     if ( ptr == NULL ) {
+         return 1;
+     }
 
-    for (int i = 0; i < buffer_size; i++){
-        ptr[i].buf = (char *) &ptr[i] + sizeof(RECV_BUF);
-        ptr[i].size = 0;
-        ptr[i].max_size = nbytes;
-        ptr[i].seq = -1;              /* valid seq should be non-negative */
-    }
+     ptr->buf = (char *)ptr + sizeof(RECV_BUF);
+     ptr->size = 0;
+     ptr->max_size = nbytes;
+     ptr->seq = -1;              /* valid seq should be non-negative */
 
-    return 0;
-}
+     return 0;
+ }
 
 
 /**
@@ -332,7 +330,6 @@ int main( int argc, char** argv )
     CURL *curl_handle;
     CURLcode res;
     char url[256];
-    RECV_BUF *p_shm_recv_buf;
     char fname[256];
     pid_t pid =getpid();
     pid_t cpid = 0;
@@ -343,7 +340,8 @@ int main( int argc, char** argv )
     int wait_time;
     int img_num;
     CTRL_BLK *p_control;
-    RECV_BUF *p_shm_output_buf;
+    RECV_BUF *p_shm_output_buf[50];
+
 
     if (argc != 6) {
         printf("Usage: ./paster2 <B> <P> <C> <X> <N>\n");
@@ -356,17 +354,20 @@ int main( int argc, char** argv )
         img_num       = atoi(argv[5]);
     }
 
-    int shmid;
-    int shm_size = buffer_size * sizeof_shm_recv_buf(IMG_SIZE);
+    RECV_BUF **p_shm_recv_buf = malloc(sizeof(RECV_BUF*) * buffer_size);
+    int *shmid = malloc(sizeof(int) * buffer_size);
+    int shm_size = sizeof_shm_recv_buf(IMG_SIZE);
     printf("shm_size = %d.\n", shm_size);
-    shmid = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
-    if ( shmid == -1 ) {
-        perror("shmget");
-        abort();
+    for (int i = 0; i < buffer_size; i++){
+        shmid[i] = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+        p_shm_recv_buf[i] = shmat(shmid[i], NULL, 0);
+        shm_recv_buf_init(p_shm_recv_buf[i], IMG_SIZE);
+        if ( shmid == -1 ) {
+            perror("shmget");
+            abort();
+        }
     }
 
-    p_shm_recv_buf = shmat(shmid, NULL, 0);
-    shm_recv_buf_init(p_shm_recv_buf, buffer_size, IMG_SIZE);
 
   //  printf("%s: URL is %s\n", argv[0], url);
 
@@ -382,17 +383,18 @@ int main( int argc, char** argv )
     p_control = shmat(CTRL_shmid, NULL, 0);
     shm_CTRL_BLK_init(p_control, buffer_size);
 
-    int output_shmid;
-    int output_shm_size = 50 * sizeof_shm_recv_buf(IMG_SIZE);
+    int output_shmid[50];
+    int output_shm_size = sizeof_shm_recv_buf(IMG_SIZE);
     printf("output_shm_size = %d.\n", output_shm_size);
-    output_shmid = shmget(IPC_PRIVATE, output_shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
-    if ( output_shmid == -1 ) {
-        perror("shmget");
-        abort();
+    for (int i = 0; i < 50; i++){
+        output_shmid[i] = shmget(IPC_PRIVATE, output_shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+        p_shm_output_buf[i] = shmat(output_shmid[i], NULL, 0);
+        shm_recv_buf_init(p_shm_output_buf[i], 50, IMG_SIZE);
+        if ( output_shmid == -1 ) {
+            perror("shmget");
+            abort();
+        }
     }
-
-    p_shm_output_buf = shmat(output_shmid, NULL, 0);
-    shm_recv_buf_init(p_shm_output_buf, 50, IMG_SIZE);
 
     for (int i = 0; i < num_producer; i++)
         cpid = fork();
