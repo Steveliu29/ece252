@@ -37,356 +37,253 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <semaphore.h>
+#include <fcntl.h>
+#include "helper.c"
 
-#define IMG_URL_FIRST "http://ece252-"
-#define IMG_URL_SECOND ".uwaterloo.ca:2530/image?img="
-#define IMG_URL_THIRD "&part="
-#define IMG_URL "http://ece252-1.uwaterloo.ca:2530/image?img=1&part=20"
-#define DUM_URL "https://example.com/"
-#define ECE252_HEADER "X-Ece252-Fragment: "
-#define IMG_SIZE 10000  /* as per lab specification */
-
-
-
-// Struct
-typedef struct recv_buf_flat {
-    char *buf;       /* memory to hold a copy of received data */
-    size_t size;     /* size of valid data in buf in bytes*/
-    size_t max_size; /* max capacity of buf in bytes*/
-    int seq;         /* >=0 sequence number extracted from http header */
-                     /* <0 indicates an invalid seq number */
-} RECV_BUF;
-
-typedef struct control {
-    sem_t mutex;
-    sem_t space;
-    sem_t items;
-    int produce_counter;
-    int consume_counter;
-} CTRL_BLK;
-
-#include "catpng.c"
-
-// Circular Queue data structure
-// Function declarations
-int is_full();
-int is_empty();
-void enqueue(RECV_BUF **p_shm_recv_buf, RECV_BUF temp);
-RECV_BUF dequeue(RECV_BUF **p_shm_recv_buf);
-
+#define SEM_ITEMS "/ece252_Charlie.myitems7"
+#define SEM_SPACE "/ece252_Charlie.myspace7"
+#define SEM_MUTEX "/ece252_Charlie.mymutex7"
 
 // Global variables
-int front = -1;
-int rear = -1;
-int SIZE;
+sem_t* items;
+sem_t* space;
+sem_t* mutex;
 
-// Function definitions
-// Check if the queue is full
-// @Return 1 - full, 0 - not full
-int is_full()
+void produce(RECV_BUF** buf_recv, CTRL_BLK *p_control, int img_num);
+void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF **p_shm_output_buf, CTRL_BLK *p_control, int wait_time);
+int is_full(CTRL_BLK *p_control);
+int is_empty(CTRL_BLK *p_control);
+void enqueue(RECV_BUF **p_shm_recv_buf, RECV_BUF *temp, CTRL_BLK *p_control);
+RECV_BUF* dequeue(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control);
+int main( int argc, char** argv );
+
+int main( int argc, char** argv )
 {
-    if ((front == rear + 1) || (front == 0 && rear == SIZE - 1))
-    {
+
+    int buffer_size = 50;
+    int num_producer = 1;
+    int num_consumer = 1;
+    int wait_time = 1000;
+    int img_num = 1;
+
+    if (argc != 6) {
+        printf("Usage: ./paster2 <B> <P> <C> <X> <N>\n");
+        return 1;
+    } else {
+        buffer_size   = atoi(argv[1]);
+        num_producer  = atoi(argv[2]);
+        num_consumer  = atoi(argv[3]);
+        wait_time     = atoi(argv[4]);
+        img_num       = atoi(argv[5]);
+    }
+
+    pid_t pid =getpid();
+    pid_t* producer_cpid = malloc(num_producer * sizeof(pid_t));
+    pid_t* consumer_cpid = malloc(num_consumer * sizeof(pid_t));
+    for (int i = 0; i < num_producer; i++)
+        producer_cpid[i] = 0;
+    for (int i = 0; i < num_consumer; i++)
+        consumer_cpid[i] = 0;
+
+
+    items = sem_open(SEM_ITEMS, O_CREAT, O_RDWR, 0);
+    space = sem_open(SEM_SPACE, O_CREAT, O_RDWR, buffer_size);
+    mutex = sem_open(SEM_MUTEX, O_CREAT, O_RDWR, 1);
+
+    if (items == SEM_FAILED || space == SEM_FAILED || mutex == SEM_FAILED){
+        perror("sem_open");
         return 1;
     }
-    return 0;
-}
 
-// Check if the queue is empty
-// @Return 1 - empty, 0 - not empty
-int is_empty()
-{
-    if (front == -1)
-    {
-        return 1;
-    }
-    return 0;
-}
+    RECV_BUF** p_shm_recv_buf = malloc (sizeof(RECV_BUF*) * buffer_size);
+    int* shmid = malloc (sizeof(int) * buffer_size);
+    memset(p_shm_recv_buf, 0, sizeof(RECV_BUF*) * buffer_size);
+    memset(shmid, 0, sizeof(int) * buffer_size);
+    int shm_size = sizeof_shm_recv_buf(IMG_SIZE);
 
-// Enqueue an element
-// @Params
-// p_shm_recv_buf - shared memory
-// temp - element to be added
-void enqueue(RECV_BUF **p_shm_recv_buf, RECV_BUF temp)
-{
-    if (is_full())
-    {
-        printf("\n Queue is full! \n");
-        return;
-    }
-    else {
-        if (front == -1)
-        {
-            front = 0;
+    for (int i = 0; i < buffer_size; i++){
+        shmid[i] = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+        if ( shmid[i] == -1 ) {
+            perror("shmget");
+            abort();
         }
-        rear = (rear + 1) % SIZE;
-    //    printf("memcpy size: %d\n", temp.size);
-        //memcpy(p_shm_recv_buf[rear]->buf, temp.buf, temp.size);
-        p_shm_recv_buf[rear]->size = temp.size;
-        p_shm_recv_buf[rear]->max_size = temp.max_size;
-        p_shm_recv_buf[rear]->seq = temp.seq;
+        p_shm_recv_buf[i] = shmat(shmid[i], NULL, 0);
+        shm_recv_buf_init(p_shm_recv_buf[i], IMG_SIZE);
     }
-}
 
-// Dequeue an element
-// @Params
-// p_shm_recv_buf - shared memory
-// temp - element to be added
-RECV_BUF dequeue(RECV_BUF **p_shm_recv_buf)
-{
-    RECV_BUF temp;
-    memset(temp.buf, 0, 10000);
-    temp.size = 0;
-    temp.max_size = 0;
-    temp.seq = -1;
 
-    if (is_empty())
-    {
-        printf("\n Queue is empty! \n");
-        return temp;
-    }
-    else {
-        // Retrieve the data
-        //memcpy(temp.buf, p_shm_recv_buf[front]->buf, p_shm_recv_buf[front]->size);
-        temp.size = p_shm_recv_buf[front]->size;
-        temp.max_size = p_shm_recv_buf[front]->max_size;
-        temp.seq = p_shm_recv_buf[front]->seq;
+    RECV_BUF** p_shm_output_buf = malloc (sizeof(RECV_BUF*) * 50);
+    int* shmid_out = malloc (sizeof(int) * 50);
+    memset(p_shm_output_buf, 0, sizeof(RECV_BUF*) * 50);
+    memset(shmid_out, 0, sizeof(int) * 50);
+    int shm_size_out = sizeof_shm_recv_buf(IMG_SIZE);
 
-        // Clean the data
-        free(p_shm_recv_buf[front]->buf);
-        p_shm_recv_buf[front]->size = 0;
-        p_shm_recv_buf[front]->max_size = 0;
-        p_shm_recv_buf[front]->seq = -1;
-
-        if (front == rear)
-        {
-            front = -1;
-            rear = -1;
+    for (int i = 0; i < 50; i++){
+        shmid_out[i] = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+        if ( shmid_out[i] == -1 ) {
+            perror("shmget");
+            abort();
         }
-        else{
-            front = (front + 1) % SIZE;
-        }
-        return temp;
+        p_shm_output_buf[i] = shmat(shmid_out[i], NULL, 0);
+        shm_recv_buf_init(p_shm_output_buf[i], IMG_SIZE);
     }
-}
 
-
-
-// Function declarations
-size_t header_cb_curl(char *p_recv, size_t size, size_t nmemb, void *userdata);
-size_t write_cb_curl(char *p_recv, size_t size, size_t nmemb, void *p_userdata);
-int sizeof_shm_recv_buf(size_t nbytes);
-int shm_recv_buf_init(RECV_BUF *ptr, size_t nbytes);
-int write_file(const char *path, const void *in, size_t len);
-void set_URL(char* url, int img_num, int server_num, int part_num);
-int shm_CTRL_BLK_init(CTRL_BLK* ptr, int buffer_size);
-void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num);
-void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF **p_shm_output_buf, CTRL_BLK *p_control);
-
-
-
-// Function definitions
-/**
- * @brief  cURL header call back function to extract image sequence number from
- *         http header data. An example header for image part n (assume n = 2) is:
- *         X-Ece252-Fragment: 2
- * @param  char *p_recv: header data delivered by cURL
- * @param  size_t size size of each memb
- * @param  size_t nmemb number of memb
- * @param  void *userdata user defined data structurea
- * @return size of header data received.
- * @details this routine will be invoked multiple times by the libcurl until the full
- * header data are received.  we are only interested in the ECE252_HEADER line
- * received so that we can extract the image sequence number from it. This
- * explains the if block in the code.
- */
-size_t header_cb_curl(char *p_recv, size_t size, size_t nmemb, void *userdata)
-{
-    int realsize = size * nmemb;
-    RECV_BUF *p = userdata;
-
-    if (realsize > strlen(ECE252_HEADER) &&
-	strncmp(p_recv, ECE252_HEADER, strlen(ECE252_HEADER)) == 0) {
-
-        /* extract img sequence number */
-	p->seq = atoi(p_recv + strlen(ECE252_HEADER));
-
-    }
-    return realsize;
-}
-
-
-/**
- * @brief write callback function to save a copy of received data in RAM.
- *        The received libcurl data are pointed by p_recv,
- *        which is provided by libcurl and is not user allocated memory.
- *        The user allocated memory is at p_userdata. One needs to
- *        cast it to the proper struct to make good use of it.
- *        This function maybe invoked more than once by one invokation of
- *        curl_easy_perform().
- */
-
-size_t write_cb_curl(char *p_recv, size_t size, size_t nmemb, void *p_userdata)
-{
-    size_t realsize = size * nmemb;
-    RECV_BUF *p = (RECV_BUF *)p_userdata;
-    //printf("Size of realsize: %d\n", realsize);
-    //printf("p_size: %d\n", p->size);
-    if (p->size + realsize + 1 > p->max_size) {/* hope this rarely happens */
-        fprintf(stderr, "User buffer is too small, abort...\n");
+    CTRL_BLK* p_control;
+    int CTRL_shmid;
+    int CTRL_shm_size = sizeof(CTRL_BLK);
+    CTRL_shmid = shmget(IPC_PRIVATE, CTRL_shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+    if ( CTRL_shmid == -1 ) {
+        perror("shmget");
         abort();
     }
 
-    memcpy(p->buf + p->size, p_recv, realsize); /*copy data from libcurl*/
-    p->size += realsize;
-    p->buf[p->size] = 0;
-
-    return realsize;
-}
-
-/**
- * @brief calculate the actual size of RECV_BUF
- * @param size_t nbytes number of bytes that buf in RECV_BUF struct would hold
- * @return the REDV_BUF member fileds size plus the RECV_BUF buf data size
- */
-int sizeof_shm_recv_buf(size_t nbytes)
-{
-    return (sizeof(RECV_BUF) + sizeof(char) * nbytes);
-}
-
-/**
- * @brief initialize the RECV_BUF structure.
- * @param RECV_BUF *ptr memory allocated by user to hold RECV_BUF struct
- * @param size_t nbytes the RECV_BUF buf data size in bytes
- * NOTE: caller should call sizeof_shm_recv_buf first and then allocate memory.
- *       caller is also responsible for releasing the memory.
- */
-
- int shm_recv_buf_init(RECV_BUF *ptr, size_t nbytes)
- {
-     if ( ptr == NULL ) {
-         return 1;
-     }
+    p_control = shmat(CTRL_shmid, NULL, 0);
+    shm_CTRL_BLK_init(p_control, buffer_size);
 
 
+    /*creating producers*/
+    for (int i = 0; i < num_producer; i++){
+        producer_cpid[i] = fork();
 
-     ptr->buf = (char *)ptr + sizeof(RECV_BUF);
-
-     ptr->size = 0;
-     ptr->max_size = nbytes;
-
-     ptr->seq = -1;              /* valid seq should be non-negative */
-
-     return 0;
- }
-
-
-/**
- * @brief output data in memory to a file
- * @param path const char *, output file path
- * @param in  void *, input data to be written to the file
- * @param len size_t, length of the input data in bytes
- */
-
-int write_file(const char *path, const void *in, size_t len)
-{
-    FILE *fp = NULL;
-
-    if (path == NULL) {
-        fprintf(stderr, "write_file: file name is null!\n");
-        return -1;
+        if ( producer_cpid[i] == 0 ) {
+            produce(p_shm_recv_buf, p_control, img_num);
+            for (int a = 0; a < buffer_size; a++)
+                shmdt(p_shm_recv_buf[a]);
+            exit(0);
+        } else if ( producer_cpid[i] < 0 ) {
+            perror("fork");
+            abort();
+        }
     }
 
-    if (in == NULL) {
-        fprintf(stderr, "write_file: input data is null!\n");
-        return -1;
+    // Start the timer
+	double times[2];
+    struct timeval tv;
+
+    if (gettimeofday(&tv, NULL) != 0) 
+    {
+        perror("gettimeofday");
+        abort();
+    }
+    times[0] = tv.tv_sec + (tv.tv_usec / 1000000.0);
+
+    /*creating consumers*/
+    for (int i = 0; i < num_consumer; i++){
+        consumer_cpid[i] = fork();
+
+        if ( consumer_cpid[i] == 0 ) {
+            consume(p_shm_recv_buf, p_shm_output_buf, p_control, wait_time);
+            for (int a = 0; a < buffer_size; a++)
+                shmdt(p_shm_recv_buf[a]);
+            exit(0);
+        } else if ( consumer_cpid[i] < 0 ) {
+            perror("fork");
+            abort();
+        }
     }
 
-    fp = fopen(path, "wb");
-    if (fp == NULL) {
-        perror("fopen");
-        return -2;
+
+
+    int child_status;
+    /*wait children for completion*/
+    for (int i = 0; i < num_producer; i++)
+         wait(&child_status);
+    for (int i = 0; i < num_consumer; i++)
+         wait(&child_status);
+
+
+    cat_png(p_shm_output_buf, 50);
+
+    // End the timer
+    if (gettimeofday(&tv, NULL) != 0) 
+    {
+        perror("gettimeofday");
+        abort();
+    }
+    times[1] = tv.tv_sec + (tv.tv_usec / 1000000.0);
+    printf("paster2 execution time: %.2lf seconds\n", times[1] - times[0]);
+
+    /* cleanup */
+    for (int i = 0; i < buffer_size; i++){
+        shmdt(p_shm_recv_buf[i]);
+        shmctl(shmid[i], IPC_RMID, NULL);
     }
 
-    if (fwrite(in, 1, len, fp) != len) {
-        fprintf(stderr, "write_file: imcomplete write!\n");
-        return -3;
-    }
-    return fclose(fp);
-}
-
-void set_URL(char* url, int img_num, int server_num, int part_num){
-    memset(url, 0, 256);
-    strcpy(url, IMG_URL_FIRST);
-    int server_pos = strlen(IMG_URL_FIRST);
-    url[server_pos] = server_num + '0';
-    strcat(url, IMG_URL_SECOND);
-    int img_pos = strlen(IMG_URL_FIRST) + strlen(IMG_URL_SECOND) + 1;
-    url[img_pos] = img_num + '0';
-    strcat(url, IMG_URL_THIRD);
-    int part_pos = strlen(IMG_URL_FIRST) + strlen(IMG_URL_SECOND) + strlen(IMG_URL_THIRD) + 2;
-    if (part_num >= 10){
-        int num2 = part_num % 10;
-        part_num = part_num / 10;
-        int num1 = part_num % 10;
-        url[part_pos] = num1 + '0';
-        part_pos++;
-        url[part_pos] = num2 + '0';
-    } else{
-        url[part_pos] = part_num + '0';
+    for (int i = 0; i < 50; i++){
+        shmdt(p_shm_output_buf[i]);
+        shmctl(shmid_out[i], IPC_RMID, NULL);
     }
 
-}
+    shmdt(p_control);
+    shmctl(CTRL_shmid, IPC_RMID, NULL);
 
-int shm_CTRL_BLK_init(CTRL_BLK* ptr, int buffer_size)
-{
-    if ( ptr == NULL ) {
+	if (sem_close (items) == -1) {
+        perror ("sem_close");
+        return 1;
+    }
+    if (sem_close (space) == -1) {
+        perror ("sem_close");
+        return 1;
+    }
+    if (sem_close (mutex) == -1) {
+        perror ("sem_close");
         return 1;
     }
 
-    sem_init (&(ptr -> mutex), 0, 1);
-    sem_init (&(ptr -> space), 0, buffer_size);
-    sem_init (&(ptr -> items), 0, 0);
-    ptr -> produce_counter = 0;
-    ptr -> consume_counter = 0;
+    if (sem_unlink (SEM_ITEMS) == -1) {
+        perror ("sem_unlink");
+        return 1;
+    }
+    if (sem_unlink (SEM_SPACE) == -1) {
+        perror ("sem_unlink");
+        return 1;
+    }
+    if (sem_unlink (SEM_MUTEX) == -1) {
+        perror ("sem_unlink");
+        return 1;
+    }
+
+
+    free(p_shm_recv_buf);
+    free(shmid);
+    free(p_shm_output_buf);
+    free(shmid_out);
+    free(producer_cpid);
+    free(consumer_cpid);
 
     return 0;
 }
 
-void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num)
-{
-    //printf("test\n");
-    RECV_BUF temp;
+void produce(RECV_BUF** buf_recv, CTRL_BLK *p_control, int img_num){
+    /*setup part_num and server_num*/
     int part_num;
     int server_num;
 
-  //  printf("test01\n");
-
-    temp.buf = malloc (IMG_SIZE);
-    sem_wait(&(p_control -> mutex));
+    sem_wait(mutex);
     part_num = p_control -> produce_counter;
     p_control -> produce_counter = p_control -> produce_counter + 1;
-    sem_post(&(p_control -> mutex));
+    sem_post(mutex);
     server_num = part_num % 3 + 1;
 
-  //  printf("test02\n");
+    /*setup temp buffer*/
+    RECV_BUF temp;
+    temp.buf = malloc (IMG_SIZE);
 
-    while (part_num < 50){
-      //  printf("test\n");
-
+    while(part_num < 50){
+        /*setup URL*/
         char url[256];
+        set_URL(url, img_num, server_num, part_num);
+
+        /*start cURL*/
         CURL *curl_handle;
         CURLcode res;
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+
+        /*initialize temp buffer*/
         memset(temp.buf, 0, IMG_SIZE);
         temp.size = 0;
         temp.max_size = IMG_SIZE;
         temp.seq = -1;
-        //printf("test\n");
-        set_URL(url, img_num, server_num, part_num);
-      //  printf("test03\n");
-
-        //printf("test\n");
-        curl_global_init(CURL_GLOBAL_DEFAULT);
 
         /* init a curl session */
         curl_handle = curl_easy_init();
@@ -414,255 +311,145 @@ void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num)
         /* get it! */
         res = curl_easy_perform(curl_handle);
 
-      //  printf("test\n");
-    //  printf("test04\n");
-
         if( res != CURLE_OK) {
             fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
         } else {
-            // printf("%lu bytes received in memory %p, seq=%d.\n",  \
-            //       p_shm_recv_buf->size, p_shm_recv_buf->buf, p_shm_recv_buf->seq);
-
-            sem_wait(&(p_control -> space));
-            sem_wait(&(p_control -> mutex));
-            // printf("url: %s\n", url);
-            // printf("size: %d\n", temp.size);
-            // printf("seq: %d\n", temp.seq);
-            enqueue(p_shm_recv_buf, temp);
-            sem_post(&(p_control -> mutex));
-            sem_post(&(p_control -> items));
-
-
+            sem_wait(space);
+            sem_wait(mutex);
+            enqueue(buf_recv, &temp, p_control);
+            sem_post(mutex);
+            sem_post(items);
         }
 
         /* cleaning up */
         curl_easy_cleanup(curl_handle);
         curl_global_cleanup();
 
-      //  printf("test05\n");
-        /* getting another piece */
-        sem_wait(&(p_control -> mutex));
+
+        sem_wait(mutex);
         part_num = p_control -> produce_counter;
         p_control -> produce_counter = p_control -> produce_counter + 1;
-        sem_post(&(p_control -> mutex));
+        sem_post(mutex);
         server_num = part_num % 3 + 1;
-
-        //printf("test06\n");
-
     }
-
-    // for (int i = 0; i < 50; i++)
-    //     printf("test seq: %d\n", p_shm_recv_buf[i] -> seq);
 
     free(temp.buf);
 }
 
-// @Params
-// p_shm_output_buf - where to save the processed data
-// p_control - synchronization problem
-void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF **p_shm_output_buf, CTRL_BLK *p_control)
-{
-    // Variables
-    int consume_counter;
-    printf("test01\n");
+void consume(RECV_BUF **buf_recv, RECV_BUF **output_buf, CTRL_BLK *p_control, int wait_time){
+    int consume_terminate;
 
-    // Critical section - only one consumer can increment the counter
-    sem_wait(&(p_control->mutex));
-    consume_counter = p_control->consume_counter;
-    (p_control->consume_counter)++;
-    sem_post(&(p_control->mutex));
-  //  printf("counter: %d\n", consume_counter);
-    printf("test02\n");
-    // Iteratively process each image fragment
-    while (consume_counter <= 50)
-    {
-        printf("test03\n");
-        // Variables
-        RECV_BUF temp;
-      //  printf("sem value: %d\n", p_control->items);
-        // Critical section - only one consumer dequeue the image fragment
+    sem_wait(mutex);
+    consume_terminate = p_control -> consume_counter;
+    p_control -> consume_counter = p_control -> consume_counter + 1;
+    sem_post(mutex);
 
-        int items;
-        sem_getvalue(&(p_control->items), &items);
+    while(consume_terminate < 50){
+        RECV_BUF* temp;
 
-        // int space;
-        // sem_getvalue(&(p_control->space), &space);
+        sem_wait(items);
+        sem_wait(mutex);
+        temp = dequeue(buf_recv, p_control);
+        sem_post(mutex);
+        sem_post(space);
 
-        printf("sem value items: %d\n", items);
-      //  printf("sem value space: %d\n", space);
+        usleep(wait_time * 1000);
+        move_to_shm_buf(temp, output_buf[temp -> seq]);
 
-        sem_wait(&(p_control->items));
-          sem_getvalue(&(p_control->items), &items);
-            printf("sem value items: %d\n", items);
-        sem_wait(&(p_control->mutex));
-        temp = dequeue(p_shm_recv_buf);
-        sem_post(&(p_control->mutex));
-        sem_post(&(p_control->space));
-        printf("test04\n");
-      //  printf("size: %d\n", temp.size);
-        // Consume the item
-        // size, max_size, seq
-        p_shm_output_buf[temp.seq] -> max_size = temp.max_size;
-        p_shm_output_buf[temp.seq] -> seq = temp.seq;
-        printf("test05\n");
-        // Variables
-        char *source = temp.buf;
-        char *dest = p_shm_output_buf[temp.seq] -> buf;
-        printf("test06\n");
-        // IDAT
-        U64 IDAT_source_length = 0;
-        memcpy(&IDAT_source_length, (source + 33), 4);
-        IDAT_source_length = ntohl(IDAT_source_length);
-
-        U8 *IDAT_source_buf = malloc(IDAT_source_length * sizeof(U8));
-        memset(IDAT_source_buf, 0, IDAT_source_length);
-        memcpy(IDAT_source_buf, dest + 41, IDAT_source_length);
-
-        U8 *IDAT_dest_buf = malloc(6 * (400 * 4 + 1));
-        U64 IDAT_dest_length = 0;
-        mem_inf(IDAT_dest_buf, &IDAT_dest_length, IDAT_source_buf, IDAT_source_length);
-
-        p_shm_output_buf[temp.seq] -> size = IDAT_dest_length;
-        memcpy(dest, IDAT_dest_buf, IDAT_dest_length);
-
-        printf("test07\n");
-        // Critical section - only one consumer can increment the counter
-        sem_wait(&(p_control->mutex));
-        consume_counter = p_control->consume_counter;
-        (p_control->consume_counter)++;
-        sem_post(&(p_control->mutex));
-        printf("test08\n");
+        sem_wait(mutex);
+        consume_terminate = p_control -> consume_counter;
+        p_control -> consume_counter = p_control -> consume_counter + 1;
+        sem_post(mutex);
     }
 }
 
-
-
-// Main function
-int main( int argc, char** argv )
+// Function definitions
+// Check if the queue is full
+// @Return 1 - full, 0 - not full
+int is_full(CTRL_BLK *p_control)
 {
-    CURL *curl_handle;
-    CURLcode res;
-    char fname[256];
-    pid_t pid =getpid();
-    pid_t cpid = 0;
-
-    int buffer_size;
-    int num_producer;
-    int num_consumer;
-    int wait_time;
-    int img_num;
-    CTRL_BLK *p_control;
-    RECV_BUF *p_shm_output_buf[50];
-
-
-    if (argc != 6) {
-        printf("Usage: ./paster2 <B> <P> <C> <X> <N>\n");
+    if ((p_control -> front == (p_control -> rear) + 1) || (p_control -> front == 0 && p_control -> rear == p_control -> queue_size - 1))
+    {
         return 1;
-    } else {
-        buffer_size   = atoi(argv[1]);
-        SIZE          = atoi(argv[1]);
-        num_producer  = atoi(argv[2]);
-        num_consumer  = atoi(argv[3]);
-        wait_time     = atoi(argv[4]);
-        img_num       = atoi(argv[5]);
     }
-
-    RECV_BUF **p_shm_recv_buf = malloc(sizeof(RECV_BUF*) * buffer_size);
-    int *shmid = malloc(sizeof(int) * buffer_size);
-    memset(p_shm_recv_buf, 0, sizeof(RECV_BUF*) * buffer_size);
-    memset(shmid, 0, sizeof(int) * buffer_size);
-    int shm_size = sizeof_shm_recv_buf(IMG_SIZE);
-    printf("shm_size = %d.\n", shm_size);
-
-    for (int i = 0; i < buffer_size; i++){
-        //printf("shm_size: %d\n", shm_size);
-        shmid[i] = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
-        p_shm_recv_buf[i] = shmat(shmid[i], NULL, 0);
-      //  printf("%d\n", i);
-        shm_recv_buf_init(p_shm_recv_buf[i], IMG_SIZE);
-        if ( shmid == -1 ) {
-            perror("shmget");
-            abort();
-        }
-    }
-
-
-  //  printf("%s: URL is %s\n", argv[0], url);
-
-    int CTRL_shmid;
-    int CTRL_shm_size = buffer_size * sizeof(CTRL_BLK);
-    printf("CTRL_shm_size = %d.\n", CTRL_shm_size);
-    CTRL_shmid = shmget(IPC_PRIVATE, CTRL_shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
-    if ( CTRL_shmid == -1 ) {
-        perror("shmget");
-        abort();
-    }
-
-    p_control = shmat(CTRL_shmid, NULL, 0);
-  //  printf("p_control: %p\n", p_control);
-    shm_CTRL_BLK_init(p_control, buffer_size);
-
-    int output_shmid[50];
-    int output_shm_size = sizeof_shm_recv_buf(IMG_SIZE);
-    printf("output_shm_size = %d.\n", output_shm_size);
-    for (int i = 0; i < 50; i++){
-        output_shmid[i] = shmget(IPC_PRIVATE, output_shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
-        p_shm_output_buf[i] = shmat(output_shmid[i], NULL, 0);
-      //  printf("%d\n", i);
-        shm_recv_buf_init(p_shm_output_buf[i], IMG_SIZE);
-        if ( output_shmid == -1 ) {
-            perror("shmget");
-            abort();
-        }
-    }
-
-    for (int i = 0; i < num_producer; i++){
-        cpid = fork();
-        if ( cpid == 0 ) {          /* child proc download */
-            produce(p_shm_recv_buf, p_control, img_num);
-            for (int i = 0; i < buffer_size; i++)
-                shmdt(p_shm_recv_buf[i]);
-            shmdt(p_control);
-            exit(0);
-        } else if ( cpid < 0 ) {
-            perror("fork");
-            abort();
-        }
-        //printf("test\n");
-    }
-
-
-    // else {
-        // int state;
-        // waitpid(cpid, &state, 0);
-        // sprintf(fname, "./output_%d_%d.png", p_shm_recv_buf->seq, pid);
-        // write_file(fname, p_shm_recv_buf->buf, p_shm_recv_buf->size);
-        // shmdt(p_shm_recv_buf);
-        // shmctl(shmid, IPC_RMID, NULL);
-    //}
-
-    for (int i = 0; i < num_consumer; i++){
-        cpid = fork();
-        if ( cpid == 0 ) {          /* child proc download */
-            consume(p_shm_recv_buf, p_shm_output_buf, p_control);
-            for (int i = 0; i < buffer_size; i++)
-                shmdt(p_shm_recv_buf[i]);
-            shmdt(p_control);
-            exit(0);
-        } else if ( cpid < 0 ) {
-            perror("fork");
-            abort();
-        }
-
-    }
-    // printf("test\n");
-
-    int child_status;
-
-    for (int i = 0; i < num_consumer; i++)
-        wait(&child_status);
-
-    cat_png(p_shm_output_buf, 50);
-
     return 0;
+}
+
+// Check if the queue is empty
+// @Return 1 - empty, 0 - not empty
+int is_empty(CTRL_BLK *p_control)
+{
+    if (p_control -> front == -1)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+// Enqueue an element
+// @Params
+// p_shm_recv_buf - shared memory
+// temp - element to be added
+void enqueue(RECV_BUF **p_shm_recv_buf, RECV_BUF *temp, CTRL_BLK *p_control)
+{
+    if (is_full(p_control))
+    {
+        printf("\n Queue is full! \n");
+        return;
+    }
+    else {
+        if (p_control -> front == -1)
+        {
+            p_control -> front = 0;
+        }
+        p_control -> rear = ((p_control -> rear) + 1) % p_control -> queue_size;
+
+        memcpy(p_shm_recv_buf[p_control -> rear] -> buf, temp -> buf, temp -> size);
+        p_shm_recv_buf[p_control -> rear] -> size = temp -> size;
+        p_shm_recv_buf[p_control -> rear] -> max_size = temp -> max_size;
+        p_shm_recv_buf[p_control -> rear] -> seq = temp -> seq;
+    }
+}
+
+// Dequeue an element
+// @Params
+// p_shm_recv_buf - shared memory
+// temp - element to be added
+RECV_BUF* dequeue(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control)
+{
+    RECV_BUF* temp = malloc (sizeof(RECV_BUF));
+    temp -> buf = malloc (IMG_SIZE);
+    memset(temp -> buf, 0, IMG_SIZE);
+    temp -> size = 0;
+    temp -> max_size = 0;
+    temp -> seq = -1;
+
+    if (is_empty(p_control))
+    {
+        printf("\n Queue is empty! \n");
+        return temp;
+    }
+    else {
+        // Retrieve the data
+        memcpy(temp -> buf, p_shm_recv_buf[p_control -> front] -> buf, p_shm_recv_buf[p_control -> front] -> size);
+        temp -> size = p_shm_recv_buf[p_control -> front] -> size;
+        temp -> max_size = p_shm_recv_buf[p_control -> front] -> max_size;
+        temp -> seq = p_shm_recv_buf[p_control -> front] -> seq;
+
+        // Clean the data
+        memset(p_shm_recv_buf[p_control -> front] -> buf, 0, IMG_SIZE);
+        p_shm_recv_buf[p_control -> front]->size = 0;
+        p_shm_recv_buf[p_control -> front]->max_size = 0;
+        p_shm_recv_buf[p_control -> front]->seq = -1;
+
+        if (p_control -> front == p_control -> rear)
+        {
+            p_control -> front = -1;
+            p_control -> rear = -1;
+        }
+        else{
+            p_control -> front = ((p_control -> front) + 1) % p_control -> queue_size;
+        }
+        return temp;
+    }
 }
