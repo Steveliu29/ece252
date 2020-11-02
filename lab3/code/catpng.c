@@ -1,10 +1,11 @@
 #include <stdio.h>    /* for printf(), perror()...   */
 #include <stdlib.h>   /* for malloc()                */
 #include <errno.h>    /* for errno                   */
+#include "lab_png.c"
 #include "crc.c"      /* for crc()                   */
 #include "zutil.c"
 
-int cat_png(RECV_BUF* buf_arr, int arr_size);
+int cat_png(RECV_BUF** buf_arr, int arr_size);
 void add_png_header(FILE *fp);
 void add_IHDR_chunk(FILE *fp, struct data_IHDR *in);
 void add_IDAT_chunk(FILE *fp, struct chunk* in);
@@ -35,22 +36,6 @@ int cat_png(RECV_BUF** buf_arr, int arr_size){
     output_IHDR -> filter = 0;
     output_IHDR -> interlace = 0;
 
-    // for (int i = 0; i < arr_size; i++){
-    //     data_IHDR_p temp = malloc(DATA_IHDR_SIZE * sizeof(U8));
-    //     memset(temp, 0, DATA_IHDR_SIZE);
-    //
-    //     get_png_data_IHDR(temp, *buf_arr[i]);
-    //
-    //     output_IHDR -> width = temp -> width; /*width does not get added since the width will stay the same*/
-    //     output_IHDR -> height = output_IHDR -> height + (temp -> height);
-    //     output_IHDR -> bit_depth = temp -> bit_depth;
-    //     output_IHDR -> color_type = temp -> color_type;
-    //     output_IHDR -> compression = temp -> compression;
-    //     output_IHDR -> filter = temp -> filter;
-    //     output_IHDR -> interlace = temp -> interlace;
-    //
-    //     free(temp);
-    // }
     add_IHDR_chunk(new_fp, output_IHDR);
 
     chunk_p sum_IDAT = malloc (sizeof (struct chunk));
@@ -60,64 +45,25 @@ int cat_png(RECV_BUF** buf_arr, int arr_size){
     U64 len_inf = 0;      /* uncompressed data length                      */
 
     sum_IDAT -> length = 0;
-//    sum_IDAT -> type[0] = 0x49;
-//    sum_IDAT -> type[1] = 0x44;
-//    sum_IDAT -> type[2] = 0x41;
-//    sum_IDAT -> type[3] = 0x54;
     sum_IDAT -> p_data = NULL;
     sum_IDAT -> crc = 0;
 
     for (int i = 0; i < arr_size; i++){
         U32 temp_type = 0;
 
-      //  long pos = 33;
+
 
         sum_IDAT -> length = sum_IDAT -> length + buf_arr[i] -> size;
-        // memcpy(&(temp_length),(*buf_arr[i].buf + pos), 4);
-
-        //pos = pos + 4;
-
-        // fseek(fp, 33, SEEK_SET);
-        // fread(&temp_length, 1, 4, fp);
-        //printf("%d\n",temp_length);
-        //temp_length = ntohl(temp_length);
-        //sum_IDAT -> length = sum_IDAT -> length + temp_length;
-
-        //memcpy(&(temp_type),(*buf_arr[i].buf + pos), 4);
-
-        //pos = pos + 4;
-
-        //fread(&temp_type, 1, 4, fp);
-
-      //  U8* temp_data = malloc ( buf_arr[i] -> size * sizeof(U8) );
-
-      //  memcpy(temp_data,(buf_arr[i] -> buf), temp_length);
-
-      //  pos = pos + temp_length;
-            // printf("%d\n",pos);
-            // printf("%d\n",c);
-
-      //  fread(temp_data, 1, temp_length, fp);
 
         memcpy(inflated_buffer + total_read, buf_arr[i] -> buf, buf_arr[i] -> size);
-//        if (ret != 0) {
-//            /* failure */
-//            fprintf(stderr,"mem_def failed. ret = %d.\n", ret);
-//            return ret;
-//        }
-        total_read = total_read + buf_arr[i] -> size;
 
-        //free(temp_data);
-    //    fclose(fp);
+        total_read = total_read + buf_arr[i] -> size;
+      //  printf("size: %d\n", buf_arr[i] -> size);
+
     }
     sum_IDAT -> p_data  = malloc(total_read);
 
     int ret_def = mem_def(sum_IDAT -> p_data, &len_def, inflated_buffer, total_read, Z_DEFAULT_COMPRESSION);
-//    if (ret_def != 0) {
-//        /* failure */
-//        fprintf(stderr,"mem_def failed. ret = %d.\n", ret_def);
-//        return ret_def;
-//    }
 
     sum_IDAT -> length = len_def;
     add_IDAT_chunk(new_fp, sum_IDAT);

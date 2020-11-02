@@ -37,10 +37,6 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <semaphore.h>
-#include "zutil.c"
-#include "crc.c"
-
-
 
 #define IMG_URL_FIRST "http://ece252-"
 #define IMG_URL_SECOND ".uwaterloo.ca:2520/image?img="
@@ -69,7 +65,7 @@ typedef struct control {
     int consume_counter;
 } CTRL_BLK;
 
-
+#include "catpng.c"
 
 // Circular Queue data structure
 // Function declarations
@@ -182,9 +178,9 @@ size_t write_cb_curl(char *p_recv, size_t size, size_t nmemb, void *p_userdata);
 int sizeof_shm_recv_buf(size_t nbytes);
 int shm_recv_buf_init(RECV_BUF *ptr, size_t nbytes);
 int write_file(const char *path, const void *in, size_t len);
-void set_URL(char** url, int img_num, int server_num, int part_num);
+void set_URL(char* url, int img_num, int server_num, int part_num);
 int shm_CTRL_BLK_init(CTRL_BLK* ptr, int buffer_size);
-void produce(char** url, RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num);
+void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num);
 void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF *p_shm_output_buf, CTRL_BLK *p_control);
 
 
@@ -273,7 +269,8 @@ int sizeof_shm_recv_buf(size_t nbytes)
 
      ptr->buf = (char *)ptr + sizeof(RECV_BUF);
      ptr->size = 0;
-     ptr->max_size = nbytes;
+     ptr->max_size = nbytes;\
+
      ptr->seq = -1;              /* valid seq should be non-negative */
 
      return 0;
@@ -314,22 +311,22 @@ int write_file(const char *path, const void *in, size_t len)
     return fclose(fp);
 }
 
-void set_URL(char** url, int img_num, int server_num, int part_num){
-    memset(*url, 0, 256);
-    strcpy(*url, IMG_URL_FIRST);
+void set_URL(char* url, int img_num, int server_num, int part_num){
+    memset(url, 0, 256);
+    strcpy(url, IMG_URL_FIRST);
     int server_pos = strlen(IMG_URL_FIRST);
-    *url[server_pos] = server_num + '0';
-    strcat(*url, IMG_URL_SECOND);
+    url[server_pos] = server_num + '0';
+    strcat(url, IMG_URL_SECOND);
     int img_pos = strlen(IMG_URL_FIRST) + strlen(IMG_URL_SECOND) + 1;
-    *url[img_pos] = img_num + '0';
+    url[img_pos] = img_num + '0';
     strcat(*url, IMG_URL_THIRD);
     int part_pos = strlen(IMG_URL_FIRST) + strlen(IMG_URL_SECOND) + strlen(IMG_URL_THIRD) + 2;
     int num2 = part_num % 10;
     part_num = part_num / 10;
     int num1 = part_num % 10;
-    *url[part_pos] = num1 + '0';
+    url[part_pos] = num1 + '0';
     part_pos++;
-    *url[part_pos] = num2 + '0';
+    url[part_pos] = num2 + '0';
 }
 
 int shm_CTRL_BLK_init(CTRL_BLK* ptr, int buffer_size)
@@ -347,14 +344,14 @@ int shm_CTRL_BLK_init(CTRL_BLK* ptr, int buffer_size)
     return 0;
 }
 
-void produce(char** url, RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num)
+void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num)
 {
+    //printf("test\n");
     RECV_BUF temp;
     int part_num;
     int server_num;
 
     temp.buf = malloc (IMG_SIZE);
-
     sem_wait(&(p_control -> mutex));
     part_num = p_control -> produce_counter;
     p_control -> produce_counter = p_control -> produce_counter + 1;
@@ -362,11 +359,15 @@ void produce(char** url, RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img
     server_num = part_num % 3 + 1;
 
     while (part_num <= 50){
+      //  printf("test\n");
+        char url[256];
         CURL *curl_handle;
         CURLcode res;
         memset(temp.buf, 0, IMG_SIZE);
+        //printf("test\n");
         set_URL(url, img_num, server_num, part_num);
 
+        //printf("test\n");
         curl_global_init(CURL_GLOBAL_DEFAULT);
 
         /* init a curl session */
@@ -395,6 +396,7 @@ void produce(char** url, RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img
         /* get it! */
         res = curl_easy_perform(curl_handle);
 
+      //  printf("test\n");
 
         if( res != CURLE_OK) {
             fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
@@ -418,7 +420,11 @@ void produce(char** url, RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img
         p_control -> produce_counter = p_control -> produce_counter + 1;
         sem_post(&(p_control -> mutex));
         server_num = part_num % 3;
+
     }
+
+    // for (int i = 0; i < 50; i++)
+    //     printf("test seq: %d\n", p_shm_recv_buf[i] -> seq);
 
     free(temp.buf);
 }
@@ -437,6 +443,7 @@ void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF *p_shm_output_buf, CTRL_BLK *p_
     consume_counter = p_control->consume_counter;
     (p_control->consume_counter)++;
     sem_post(&(p_control->mutex));
+  //  printf("counter: %d\n", consume_counter);
 
     // Iteratively process each image fragment
     while (consume_counter <= 50)
@@ -451,7 +458,7 @@ void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF *p_shm_output_buf, CTRL_BLK *p_
         sem_post(&(p_control->mutex));
         sem_post(&(p_control->space));
 
-
+      //  printf("size: %d\n", temp.size);
         // Consume the item
         // size, max_size, seq
         p_shm_output_buf[temp.seq].max_size = temp.max_size;
@@ -493,7 +500,6 @@ int main( int argc, char** argv )
 {
     CURL *curl_handle;
     CURLcode res;
-    char url[256];
     char fname[256];
     pid_t pid =getpid();
     pid_t cpid = 0;
@@ -521,12 +527,18 @@ int main( int argc, char** argv )
 
     RECV_BUF **p_shm_recv_buf = malloc(sizeof(RECV_BUF*) * buffer_size);
     int *shmid = malloc(sizeof(int) * buffer_size);
+    memset(p_shm_recv_buf, 0, sizeof(RECV_BUF*) * buffer_size);
+    memset(shmid, 0, sizeof(int) * buffer_size);
     int shm_size = sizeof_shm_recv_buf(IMG_SIZE);
     printf("shm_size = %d.\n", shm_size);
+
     for (int i = 0; i < buffer_size; i++){
+
         shmid[i] = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+
         p_shm_recv_buf[i] = shmat(shmid[i], NULL, 0);
         shm_recv_buf_init(p_shm_recv_buf[i], IMG_SIZE);
+
         if ( shmid == -1 ) {
             perror("shmget");
             abort();
@@ -561,19 +573,22 @@ int main( int argc, char** argv )
         }
     }
 
-    for (int i = 0; i < num_producer; i++)
+    for (int i = 0; i < num_producer; i++){
         cpid = fork();
-
-    if ( cpid == 0 ) {          /* child proc download */
-        produce(&url, p_shm_recv_buf, p_control, img_num);
-        for (int i = 0; i < buffer_size; i++)
-            shmdt(p_shm_recv_buf[i]);
-        shmdt(p_control);
-        exit(0);
-    } else if ( cpid < 0 ) {
-        perror("fork");
-        abort();
+        if ( cpid == 0 ) {          /* child proc download */
+            produce(p_shm_recv_buf, p_control, img_num);
+            for (int i = 0; i < buffer_size; i++)
+                shmdt(p_shm_recv_buf[i]);
+            shmdt(p_control);
+            exit(0);
+        } else if ( cpid < 0 ) {
+            perror("fork");
+            abort();
+        }
+        //printf("test\n");
     }
+
+
     // else {
         // int state;
         // waitpid(cpid, &state, 0);
@@ -583,25 +598,28 @@ int main( int argc, char** argv )
         // shmctl(shmid, IPC_RMID, NULL);
     //}
 
-    for (int i = 0; i < num_consumer; i++)
+    for (int i = 0; i < num_consumer; i++){
         cpid = fork();
-
-    if ( cpid == 0 ) {          /* child proc download */
-        consume(p_shm_recv_buf, p_shm_output_buf, p_control);
-        for (int i = 0; i < buffer_size; i++)
-            shmdt(p_shm_recv_buf[i]);
-        shmdt(p_control);
-        exit(0);
-    } else if ( cpid < 0 ) {
-        perror("fork");
-        abort();
+        if ( cpid == 0 ) {          /* child proc download */
+            consume(p_shm_recv_buf, p_shm_output_buf, p_control);
+            for (int i = 0; i < buffer_size; i++)
+                shmdt(p_shm_recv_buf[i]);
+            shmdt(p_control);
+            exit(0);
+        } else if ( cpid < 0 ) {
+            perror("fork");
+            abort();
+        }
+        //printf("test\n");
     }
 
-    for (int i = 0; i < num_consumer + num_producer; i++)
-        wait();
 
-    catpng(p_shm_output_buf, 50);
+    int child_status;
 
+    for (int i = 0; i < num_consumer; i++)
+        wait(&child_status);
+
+    cat_png(p_shm_output_buf, 50);
 
     return 0;
 }
