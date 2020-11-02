@@ -409,17 +409,37 @@ int main( int argc, char** argv )
             shmdt(p_shm_recv_buf[i]);
         shmdt(p_control);
         exit(0);
-    } else if ( cpid > 0 ) {    /* parent proc */
-        int state;
-        waitpid(cpid, &state, 0);
-        sprintf(fname, "./output_%d_%d.png", p_shm_recv_buf->seq, pid);
-        write_file(fname, p_shm_recv_buf->buf, p_shm_recv_buf->size);
-        shmdt(p_shm_recv_buf);
-        shmctl(shmid, IPC_RMID, NULL);
-    } else {
+    } else if ( cpid < 0 ) {
         perror("fork");
         abort();
     }
+    // else {
+        // int state;
+        // waitpid(cpid, &state, 0);
+        // sprintf(fname, "./output_%d_%d.png", p_shm_recv_buf->seq, pid);
+        // write_file(fname, p_shm_recv_buf->buf, p_shm_recv_buf->size);
+        // shmdt(p_shm_recv_buf);
+        // shmctl(shmid, IPC_RMID, NULL);
+    //}
+
+    for (int i = 0; i < num_consumer; i++)
+        cpid = fork();
+
+    if ( cpid == 0 ) {          /* child proc download */
+        consume(&url, p_shm_recv_buf, p_control, img_num);
+        for (int i = 0; i < buffer_size; i++)
+            shmdt(p_shm_recv_buf[i]);
+        shmdt(p_control);
+        exit(0);
+    } else if ( cpid < 0 ) {
+        perror("fork");
+        abort();
+    }
+
+    for (int i = 0; i < num_consumer + num_producer; i++)
+        wait();
+
+    catpng(p_shm_output_buf, 50);
 
 
     return 0;
