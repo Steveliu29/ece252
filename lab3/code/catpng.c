@@ -26,22 +26,31 @@ int cat_png(RECV_BUF** buf_arr, int arr_size){
     /*collecting all the IHDR chuncks*/
     data_IHDR_p output_IHDR = malloc(DATA_IHDR_SIZE * sizeof(U8));
     memset(output_IHDR, 0, DATA_IHDR_SIZE);
-    for (int i = 0; i < arr_size; i++){
-        data_IHDR_p temp = malloc(DATA_IHDR_SIZE * sizeof(U8));
-        memset(temp, 0, DATA_IHDR_SIZE);
 
-        get_png_data_IHDR(temp, *buf_arr[i]);
+    output_IHDR -> width = 400; /*width does not get added since the width will stay the same*/
+    output_IHDR -> height = 300;
+    output_IHDR -> bit_depth = 8;
+    output_IHDR -> color_type = 6;
+    output_IHDR -> compression = 0;
+    output_IHDR -> filter = 0;
+    output_IHDR -> interlace = 0;
 
-        output_IHDR -> width = temp -> width; /*width does not get added since the width will stay the same*/
-        output_IHDR -> height = output_IHDR -> height + (temp -> height);
-        output_IHDR -> bit_depth = temp -> bit_depth;
-        output_IHDR -> color_type = temp -> color_type;
-        output_IHDR -> compression = temp -> compression;
-        output_IHDR -> filter = temp -> filter;
-        output_IHDR -> interlace = temp -> interlace;
-
-        free(temp);
-    }
+    // for (int i = 0; i < arr_size; i++){
+    //     data_IHDR_p temp = malloc(DATA_IHDR_SIZE * sizeof(U8));
+    //     memset(temp, 0, DATA_IHDR_SIZE);
+    //
+    //     get_png_data_IHDR(temp, *buf_arr[i]);
+    //
+    //     output_IHDR -> width = temp -> width; /*width does not get added since the width will stay the same*/
+    //     output_IHDR -> height = output_IHDR -> height + (temp -> height);
+    //     output_IHDR -> bit_depth = temp -> bit_depth;
+    //     output_IHDR -> color_type = temp -> color_type;
+    //     output_IHDR -> compression = temp -> compression;
+    //     output_IHDR -> filter = temp -> filter;
+    //     output_IHDR -> interlace = temp -> interlace;
+    //
+    //     free(temp);
+    // }
     add_IHDR_chunk(new_fp, output_IHDR);
 
     chunk_p sum_IDAT = malloc (sizeof (struct chunk));
@@ -57,47 +66,48 @@ int cat_png(RECV_BUF** buf_arr, int arr_size){
 //    sum_IDAT -> type[3] = 0x54;
     sum_IDAT -> p_data = NULL;
     sum_IDAT -> crc = 0;
+
     for (int i = 0; i < arr_size; i++){
-        U32 temp_length = 0;
         U32 temp_type = 0;
 
-        long pos = 33;
+      //  long pos = 33;
 
-        memcpy(&(temp_length),(*buf_arr[i].buf + pos), 4);
+        sum_IDAT -> length = sum_IDAT -> length + buf_arr[i] -> size;
+        // memcpy(&(temp_length),(*buf_arr[i].buf + pos), 4);
 
-        pos = pos + 4;
+        //pos = pos + 4;
 
         // fseek(fp, 33, SEEK_SET);
         // fread(&temp_length, 1, 4, fp);
         //printf("%d\n",temp_length);
-        temp_length = ntohl(temp_length);
-        sum_IDAT -> length = sum_IDAT -> length + temp_length;
+        //temp_length = ntohl(temp_length);
+        //sum_IDAT -> length = sum_IDAT -> length + temp_length;
 
-        memcpy(&(temp_type),(*buf_arr[i].buf + pos), 4);
+        //memcpy(&(temp_type),(*buf_arr[i].buf + pos), 4);
 
-        pos = pos + 4;
+        //pos = pos + 4;
 
         //fread(&temp_type, 1, 4, fp);
 
-        U8* temp_data = malloc ( temp_length * sizeof(U8) );
+      //  U8* temp_data = malloc ( buf_arr[i] -> size * sizeof(U8) );
 
-        memcpy(temp_data,(*buf_arr[i].buf + pos), temp_length);
+      //  memcpy(temp_data,(buf_arr[i] -> buf), temp_length);
 
-        pos = pos + temp_length;
+      //  pos = pos + temp_length;
             // printf("%d\n",pos);
             // printf("%d\n",c);
 
       //  fread(temp_data, 1, temp_length, fp);
 
-        int ret = mem_inf(inflated_buffer + total_read, &len_inf, temp_data, temp_length);
+        memcpy(inflated_buffer + total_read, buf_arr[i] -> buf, buf_arr[i] -> size);
 //        if (ret != 0) {
 //            /* failure */
 //            fprintf(stderr,"mem_def failed. ret = %d.\n", ret);
 //            return ret;
 //        }
-        total_read = total_read + len_inf;
+        total_read = total_read + buf_arr[i] -> size;
 
-        free(temp_data);
+        //free(temp_data);
     //    fclose(fp);
     }
     sum_IDAT -> p_data  = malloc(total_read);
