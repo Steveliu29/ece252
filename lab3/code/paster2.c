@@ -39,7 +39,7 @@
 #include <semaphore.h>
 
 #define IMG_URL_FIRST "http://ece252-"
-#define IMG_URL_SECOND ".uwaterloo.ca:2520/image?img="
+#define IMG_URL_SECOND ".uwaterloo.ca:2530/image?img="
 #define IMG_URL_THIRD "&part="
 #define IMG_URL "http://ece252-1.uwaterloo.ca:2530/image?img=1&part=20"
 #define DUM_URL "https://example.com/"
@@ -120,8 +120,8 @@ void enqueue(RECV_BUF **p_shm_recv_buf, RECV_BUF temp)
             front = 0;
         }
         rear = (rear + 1) % SIZE;
-
-        memcpy(p_shm_recv_buf[rear]->buf, temp.buf, temp.size);
+    //    printf("memcpy size: %d\n", temp.size);
+        //memcpy(p_shm_recv_buf[rear]->buf, temp.buf, temp.size);
         p_shm_recv_buf[rear]->size = temp.size;
         p_shm_recv_buf[rear]->max_size = temp.max_size;
         p_shm_recv_buf[rear]->seq = temp.seq;
@@ -147,7 +147,7 @@ RECV_BUF dequeue(RECV_BUF **p_shm_recv_buf)
     }
     else {
         // Retrieve the data
-        memcpy(temp.buf, p_shm_recv_buf[front]->buf, p_shm_recv_buf[front]->size);
+        //memcpy(temp.buf, p_shm_recv_buf[front]->buf, p_shm_recv_buf[front]->size);
         temp.size = p_shm_recv_buf[front]->size;
         temp.max_size = p_shm_recv_buf[front]->max_size;
         temp.seq = p_shm_recv_buf[front]->seq;
@@ -181,7 +181,7 @@ int write_file(const char *path, const void *in, size_t len);
 void set_URL(char* url, int img_num, int server_num, int part_num);
 int shm_CTRL_BLK_init(CTRL_BLK* ptr, int buffer_size);
 void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num);
-void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF *p_shm_output_buf, CTRL_BLK *p_control);
+void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF **p_shm_output_buf, CTRL_BLK *p_control);
 
 
 
@@ -230,7 +230,8 @@ size_t write_cb_curl(char *p_recv, size_t size, size_t nmemb, void *p_userdata)
 {
     size_t realsize = size * nmemb;
     RECV_BUF *p = (RECV_BUF *)p_userdata;
-
+    //printf("Size of realsize: %d\n", realsize);
+    //printf("p_size: %d\n", p->size);
     if (p->size + realsize + 1 > p->max_size) {/* hope this rarely happens */
         fprintf(stderr, "User buffer is too small, abort...\n");
         abort();
@@ -267,9 +268,12 @@ int sizeof_shm_recv_buf(size_t nbytes)
          return 1;
      }
 
+
+
      ptr->buf = (char *)ptr + sizeof(RECV_BUF);
+
      ptr->size = 0;
-     ptr->max_size = nbytes;\
+     ptr->max_size = nbytes;
 
      ptr->seq = -1;              /* valid seq should be non-negative */
 
@@ -319,14 +323,19 @@ void set_URL(char* url, int img_num, int server_num, int part_num){
     strcat(url, IMG_URL_SECOND);
     int img_pos = strlen(IMG_URL_FIRST) + strlen(IMG_URL_SECOND) + 1;
     url[img_pos] = img_num + '0';
-    strcat(*url, IMG_URL_THIRD);
+    strcat(url, IMG_URL_THIRD);
     int part_pos = strlen(IMG_URL_FIRST) + strlen(IMG_URL_SECOND) + strlen(IMG_URL_THIRD) + 2;
-    int num2 = part_num % 10;
-    part_num = part_num / 10;
-    int num1 = part_num % 10;
-    url[part_pos] = num1 + '0';
-    part_pos++;
-    url[part_pos] = num2 + '0';
+    if (part_num >= 10){
+        int num2 = part_num % 10;
+        part_num = part_num / 10;
+        int num1 = part_num % 10;
+        url[part_pos] = num1 + '0';
+        part_pos++;
+        url[part_pos] = num2 + '0';
+    } else{
+        url[part_pos] = part_num + '0';
+    }
+
 }
 
 int shm_CTRL_BLK_init(CTRL_BLK* ptr, int buffer_size)
@@ -351,6 +360,8 @@ void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num)
     int part_num;
     int server_num;
 
+  //  printf("test01\n");
+
     temp.buf = malloc (IMG_SIZE);
     sem_wait(&(p_control -> mutex));
     part_num = p_control -> produce_counter;
@@ -358,14 +369,21 @@ void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num)
     sem_post(&(p_control -> mutex));
     server_num = part_num % 3 + 1;
 
-    while (part_num <= 50){
+  //  printf("test02\n");
+
+    while (part_num < 50){
       //  printf("test\n");
+
         char url[256];
         CURL *curl_handle;
         CURLcode res;
         memset(temp.buf, 0, IMG_SIZE);
+        temp.size = 0;
+        temp.max_size = IMG_SIZE;
+        temp.seq = -1;
         //printf("test\n");
         set_URL(url, img_num, server_num, part_num);
+      //  printf("test03\n");
 
         //printf("test\n");
         curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -397,29 +415,39 @@ void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num)
         res = curl_easy_perform(curl_handle);
 
       //  printf("test\n");
+    //  printf("test04\n");
 
         if( res != CURLE_OK) {
             fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
         } else {
             // printf("%lu bytes received in memory %p, seq=%d.\n",  \
             //       p_shm_recv_buf->size, p_shm_recv_buf->buf, p_shm_recv_buf->seq);
+
             sem_wait(&(p_control -> space));
             sem_wait(&(p_control -> mutex));
+            // printf("url: %s\n", url);
+            // printf("size: %d\n", temp.size);
+            // printf("seq: %d\n", temp.seq);
             enqueue(p_shm_recv_buf, temp);
             sem_post(&(p_control -> mutex));
             sem_post(&(p_control -> items));
+
+
         }
 
         /* cleaning up */
         curl_easy_cleanup(curl_handle);
         curl_global_cleanup();
 
+      //  printf("test05\n");
         /* getting another piece */
         sem_wait(&(p_control -> mutex));
         part_num = p_control -> produce_counter;
         p_control -> produce_counter = p_control -> produce_counter + 1;
         sem_post(&(p_control -> mutex));
-        server_num = part_num % 3;
+        server_num = part_num % 3 + 1;
+
+        //printf("test06\n");
 
     }
 
@@ -432,11 +460,11 @@ void produce(RECV_BUF **p_shm_recv_buf, CTRL_BLK *p_control ,int img_num)
 // @Params
 // p_shm_output_buf - where to save the processed data
 // p_control - synchronization problem
-void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF *p_shm_output_buf, CTRL_BLK *p_control)
+void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF **p_shm_output_buf, CTRL_BLK *p_control)
 {
     // Variables
     int consume_counter;
-
+    printf("test01\n");
 
     // Critical section - only one consumer can increment the counter
     sem_wait(&(p_control->mutex));
@@ -444,30 +472,43 @@ void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF *p_shm_output_buf, CTRL_BLK *p_
     (p_control->consume_counter)++;
     sem_post(&(p_control->mutex));
   //  printf("counter: %d\n", consume_counter);
-
+    printf("test02\n");
     // Iteratively process each image fragment
     while (consume_counter <= 50)
     {
+        printf("test03\n");
         // Variables
         RECV_BUF temp;
-
+      //  printf("sem value: %d\n", p_control->items);
         // Critical section - only one consumer dequeue the image fragment
+
+        int items;
+        sem_getvalue(&(p_control->items), &items);
+
+        // int space;
+        // sem_getvalue(&(p_control->space), &space);
+
+        printf("sem value items: %d\n", items);
+      //  printf("sem value space: %d\n", space);
+
         sem_wait(&(p_control->items));
+          sem_getvalue(&(p_control->items), &items);
+            printf("sem value items: %d\n", items);
         sem_wait(&(p_control->mutex));
         temp = dequeue(p_shm_recv_buf);
         sem_post(&(p_control->mutex));
         sem_post(&(p_control->space));
-
+        printf("test04\n");
       //  printf("size: %d\n", temp.size);
         // Consume the item
         // size, max_size, seq
-        p_shm_output_buf[temp.seq].max_size = temp.max_size;
-        p_shm_output_buf[temp.seq].seq = temp.seq;
-
+        p_shm_output_buf[temp.seq] -> max_size = temp.max_size;
+        p_shm_output_buf[temp.seq] -> seq = temp.seq;
+        printf("test05\n");
         // Variables
         char *source = temp.buf;
-        char *dest = p_shm_output_buf[temp.seq].buf;
-
+        char *dest = p_shm_output_buf[temp.seq] -> buf;
+        printf("test06\n");
         // IDAT
         U64 IDAT_source_length = 0;
         memcpy(&IDAT_source_length, (source + 33), 4);
@@ -481,15 +522,16 @@ void consume(RECV_BUF **p_shm_recv_buf, RECV_BUF *p_shm_output_buf, CTRL_BLK *p_
         U64 IDAT_dest_length = 0;
         mem_inf(IDAT_dest_buf, &IDAT_dest_length, IDAT_source_buf, IDAT_source_length);
 
-        p_shm_output_buf[temp.seq].size = IDAT_dest_length;
+        p_shm_output_buf[temp.seq] -> size = IDAT_dest_length;
         memcpy(dest, IDAT_dest_buf, IDAT_dest_length);
 
-
+        printf("test07\n");
         // Critical section - only one consumer can increment the counter
         sem_wait(&(p_control->mutex));
         consume_counter = p_control->consume_counter;
         (p_control->consume_counter)++;
         sem_post(&(p_control->mutex));
+        printf("test08\n");
     }
 }
 
@@ -533,12 +575,11 @@ int main( int argc, char** argv )
     printf("shm_size = %d.\n", shm_size);
 
     for (int i = 0; i < buffer_size; i++){
-
+        //printf("shm_size: %d\n", shm_size);
         shmid[i] = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
-
         p_shm_recv_buf[i] = shmat(shmid[i], NULL, 0);
+      //  printf("%d\n", i);
         shm_recv_buf_init(p_shm_recv_buf[i], IMG_SIZE);
-
         if ( shmid == -1 ) {
             perror("shmget");
             abort();
@@ -558,6 +599,7 @@ int main( int argc, char** argv )
     }
 
     p_control = shmat(CTRL_shmid, NULL, 0);
+  //  printf("p_control: %p\n", p_control);
     shm_CTRL_BLK_init(p_control, buffer_size);
 
     int output_shmid[50];
@@ -566,6 +608,7 @@ int main( int argc, char** argv )
     for (int i = 0; i < 50; i++){
         output_shmid[i] = shmget(IPC_PRIVATE, output_shm_size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
         p_shm_output_buf[i] = shmat(output_shmid[i], NULL, 0);
+      //  printf("%d\n", i);
         shm_recv_buf_init(p_shm_output_buf[i], IMG_SIZE);
         if ( output_shmid == -1 ) {
             perror("shmget");
@@ -610,9 +653,9 @@ int main( int argc, char** argv )
             perror("fork");
             abort();
         }
-        //printf("test\n");
-    }
 
+    }
+    // printf("test\n");
 
     int child_status;
 
