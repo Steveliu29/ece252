@@ -649,6 +649,7 @@ int main( int argc, char** argv )
 
         /* process the download data */
 
+        cleanup(curl_handle, &recv_buf);
 
     }
 
@@ -686,6 +687,6 @@ int main( int argc, char** argv )
     free(my_png_url);
     queue_destory(url_queue);
     hdestroy();
-    cleanup(curl_handle, &recv_buf);
+
     return 0;
 }
