@@ -672,7 +672,7 @@ int main( int argc, char** argv )
     	strcpy(input.key, log_url[i].url);
     	strcpy(input.data, log_url[i].url);
 
-    	ENTRY *result = malloc(sizeof(ENTRY));
+    	ENTRY *result;
     	result = NULL;
 
     	if (hsearch(input, FIND) != NULL)
@@ -681,10 +681,6 @@ int main( int argc, char** argv )
     		free(result->key);
     		free(result->data);
     	}
-
-    	free(input.key);
-    	free(input.data);
-    	free(result);
     }
 
     free(my_png_url);
