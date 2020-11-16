@@ -52,7 +52,7 @@
 #define CT_PNG_LEN  9
 #define CT_HTML_LEN 9
 
-int URL_counter;
+int URL_counter = 0;
 
 #define max(a, b) \
    ({ __typeof__ (a) _a = (a); \
@@ -358,6 +358,28 @@ int write_file(const char *path, const void *in, size_t len)
     return fclose(fp);
 }
 
+void write_url(PNG_URL* png_url, int URL_counter, char* file_name){
+    int total_size = 0;
+    for (int i = 0; i < URL_counter; i++){
+        total_size = total_size + png_url[i].url_size;
+    }
+
+    char* file_to_write = malloc(total_size * sizeof(char));
+
+    int read_counter = 0;
+    for (int i = 0; i < URL_counter; i++){
+        memcpy(file_to_write + read_counter, png_url[i].url, png_url[i].url_size);
+        file_to_write[read_counter + png_url[i].url_size - 1] = '\n';
+        read_counter = read_counter + png_url[i].url_size;
+
+    }
+
+    write_file(file_name, file_to_write, total_size);
+
+    free(file_to_write);
+
+}
+
 /**
  * @brief create a curl easy handle and set the options.
  * @param RECV_BUF *ptr points to user data needed by the curl write call back function
@@ -563,11 +585,13 @@ int main( int argc, char** argv )
     hcreate(500);
     my_queue* url_queue = queue_init(500);
     PNG_URL* my_png_url = malloc (m * sizeof(PNG_URL));
+    PNG_URL log_url[500];
     for (int i = 0; i < m; i++){
         memset(my_png_url[i].url, 0, 256);
         my_png_url[i].url_size = -1;
     }
     URL_counter = 0;
+    int log_counter = 0;
 
     enqueue(url_queue, url);
 
@@ -575,6 +599,10 @@ int main( int argc, char** argv )
 
         char* next_url = dequeue(url_queue);
         printf("DEQUEUE URL: %s\n", next_url);
+
+        strcpy(log_url[log_counter].url, next_url);
+        log_url[log_counter].url_size = strlen(next_url) + 1;
+        log_counter = log_counter + 1;
 
         curl_global_init(CURL_GLOBAL_DEFAULT);
         curl_handle = easy_handle_init(&recv_buf, next_url);
@@ -602,11 +630,18 @@ int main( int argc, char** argv )
 
     }
 
+    write_url(my_png_url, URL_counter, "png_urls.txt");
+    
+    if (v != "")
+        write_url(log_url, log_counter, v);
+
+
     for (int i = 0; i < m; i++)
         printf("My URL is %s\n", my_png_url[i].url);
 
     /* cleaning up */
 
+    free(my_png_url);
     queue_destory(url_queue);
     hdestroy();
     cleanup(curl_handle, &recv_buf);
