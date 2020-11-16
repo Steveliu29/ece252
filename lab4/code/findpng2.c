@@ -118,7 +118,7 @@ htmlDocPtr mem_getdoc(char *buf, int size, const char *url)
     htmlDocPtr doc = htmlReadMemory(buf, size, url, NULL, opts);
 
     if ( doc == NULL ) {
-        fprintf(stderr, "Document not parsed successfully.\n");
+  //      fprintf(stderr, "Document not parsed successfully.\n");
         return NULL;
     }
     return doc;
@@ -132,18 +132,18 @@ xmlXPathObjectPtr getnodeset (xmlDocPtr doc, xmlChar *xpath)
 
     context = xmlXPathNewContext(doc);
     if (context == NULL) {
-        printf("Error in xmlXPathNewContext\n");
+    //    printf("Error in xmlXPathNewContext\n");
         return NULL;
     }
     result = xmlXPathEvalExpression(xpath, context);
     xmlXPathFreeContext(context);
     if (result == NULL) {
-        printf("Error in xmlXPathEvalExpression\n");
+  //      printf("Error in xmlXPathEvalExpression\n");
         return NULL;
     }
     if(xmlXPathNodeSetIsEmpty(result->nodesetval)){
         xmlXPathFreeObject(result);
-        printf("No result\n");
+      //  printf("No result\n");
         return NULL;
     }
     return result;
@@ -158,18 +158,18 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
     xmlNodeSetPtr nodeset;
     xmlXPathObjectPtr result;
     xmlChar *href;
-    printf("test4\n");
+  //  printf("test4\n");
     if (buf == NULL) {
         return 1;
     }
 
-    printf("test5\n");
+  //  printf("test5\n");
 
     doc = mem_getdoc(buf, size, base_url);
     result = getnodeset (doc, xpath);
     if (result) {
         nodeset = result->nodesetval;
-        printf("test6\n");
+      //  printf("test6\n");
         for (i=0; i < nodeset->nodeNr; i++) {
             href = xmlNodeListGetString(doc, nodeset->nodeTab[i]->xmlChildrenNode, 1);
             if ( follow_relative_links ) {
@@ -177,12 +177,12 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                 href = xmlBuildURI(href, (xmlChar *) base_url);
                 xmlFree(old);
             }
-            printf("test7\n");
+          //  printf("test7\n");
             if ( href != NULL && !strncmp((const char *)href, "http", 4) ) {
                 ENTRY temp_entry;
                 char * temp_url = (char*) href;
                 int url_length = (strlen(temp_url) + 1);
-                printf("test8\n");
+            //    printf("test8\n");
               //  printf("TEST URL: %s\n", temp_url);
 
                 temp_entry.key = malloc(sizeof(char) * url_length);
@@ -192,7 +192,7 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
 
                 strcpy(temp_entry.key, temp_url);
                 strcpy(temp_entry.data, temp_url);
-                printf("test9\n");
+            //    printf("test9\n");
 
                 if (hsearch(temp_entry, FIND) == NULL){
 
@@ -208,7 +208,7 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                     free(temp_entry.key);
                     free(temp_entry.data);
                 }
-                printf("href: %s\n", href);
+          //      printf("href: %s\n", href);
             }
             xmlFree(href);
         }
@@ -455,10 +455,10 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue)
     char fname[256];
     int follow_relative_link = 1;
     char *url = NULL;
-    pid_t pid =getpid();
-    printf("test2\n");
+    pid_t pid = getpid();
+  //  printf("test2\n");
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
-    printf("test3\n");
+  //  printf("test3\n");
     find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url, queue);
 
     return 0;
@@ -477,7 +477,7 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf, PNG_URL* my_png_url)
     char *eurl = NULL;          /* effective URL */
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
     if ( eurl != NULL && is_png(buf) == 0) {
-        printf("The PNG url is: %s\n", eurl);
+      //  printf("The PNG url is: %s\n", eurl);
         strcpy(my_png_url[URL_counter].url, eurl);
         my_png_url[URL_counter].url_size = strlen(eurl) + 1;
         URL_counter = URL_counter + 1;
@@ -504,25 +504,25 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_U
 
     res = curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
     if ( res == CURLE_OK ) {
-	    printf("Response code: %ld\n", response_code);
+	    //printf("Response code: %ld\n", response_code);
     }
 
     if ( response_code >= 400 ) {
-    	fprintf(stderr, "Error.\n");
+    //	fprintf(stderr, "Error.\n");
         return 1;
     }
 
     char *ct = NULL;
     res = curl_easy_getinfo(curl_handle, CURLINFO_CONTENT_TYPE, &ct);
     if ( res == CURLE_OK && ct != NULL ) {
-    	printf("Content-Type: %s, len=%ld\n", ct, strlen(ct));
+    //	printf("Content-Type: %s, len=%ld\n", ct, strlen(ct));
     } else {
-        fprintf(stderr, "Failed obtain Content-Type\n");
+    //    fprintf(stderr, "Failed obtain Content-Type\n");
         return 2;
     }
 
     if ( strstr(ct, CT_HTML) ) {
-        printf("test1\n");
+      //  printf("test1\n");
         return process_html(curl_handle, p_recv_buf, queue);
     } else if ( strstr(ct, CT_PNG) ) {
         return process_png(curl_handle, p_recv_buf, my_png_url);
@@ -554,7 +554,7 @@ int main( int argc, char** argv )
 
         case 't':
 	    t = strtoul(optarg, NULL, 10);
-	    printf("option -t specifies a value of %d.\n", t);
+	  //  printf("option -t specifies a value of %d.\n", t);
 	    if (t <= 0) {
                 fprintf(stderr, "%s: %s > 0 -- 't'\n", argv[0], str);
                 return -1;
@@ -563,12 +563,12 @@ int main( int argc, char** argv )
 
         case 'm':
             m = strtoul(optarg, NULL, 10);
-	    printf("option -m specifies a value of %d.\n", m);
+	 //   printf("option -m specifies a value of %d.\n", m);
             break;
 
         case 'v':
             strcpy(v, optarg);
-      printf("option -v specifies a value of %s.\n", v);
+    //  printf("option -v specifies a value of %s.\n", v);
             break;
 
         default:
@@ -578,7 +578,7 @@ int main( int argc, char** argv )
     }
 
     strcpy(url, argv[argc-1]);
-    printf("The URL is: %s.\n", url);
+    //printf("The URL is: %s.\n", url);
 
     /*Start of processing url*/
 
@@ -620,7 +620,7 @@ int main( int argc, char** argv )
     while (!is_empty(url_queue) && URL_counter != m){
 
         char* next_url = dequeue(url_queue);
-        printf("DEQUEUE URL: %s\n", next_url);
+      //  printf("DEQUEUE URL: %s\n", next_url);
 
         strcpy(log_url[log_counter].url, next_url);
         log_url[log_counter].url_size = strlen(next_url) + 1;
@@ -643,7 +643,7 @@ int main( int argc, char** argv )
             // cleanup(curl_handle, &recv_buf);
             // exit(1);
         } else {
-	           printf("%lu bytes received in memory %p, seq=%d.\n", recv_buf.size, recv_buf.buf, recv_buf.seq);
+	         //  printf("%lu bytes received in memory %p, seq=%d.\n", recv_buf.size, recv_buf.buf, recv_buf.seq);
              process_data(curl_handle, &recv_buf, url_queue, my_png_url);
         }
 
@@ -659,29 +659,35 @@ int main( int argc, char** argv )
         write_url(log_url, log_counter, v);
 
 
-    for (int i = 0; i < m; i++)
-        printf("My URL is %s\n", my_png_url[i].url);
+    // for (int i = 0; i < m; i++)
+    //     printf("My URL is %s\n", my_png_url[i].url);
 
     /* cleaning up */
     for (int i = 0; i < log_counter; ++i)
     {
     	ENTRY input;
-    	input.key = malloc(log_url[i].url_size * sizeof(char));
-    	input.data = malloc(log_url[i].url_size * sizeof(char));
-    	memset(input.key, 0, log_url[i].url_size);
-    	memset(input.data, 0, log_url[i].url_size);
-    	strcpy(input.key, log_url[i].url);
-    	strcpy(input.data, log_url[i].url);
+    	// input.key = malloc(log_url[i].url_size * sizeof(char));
+    	// input.data = malloc(log_url[i].url_size * sizeof(char));
+    	// memset(input.key, 0, log_url[i].url_size);
+    	// memset(input.data, 0, log_url[i].url_size);
+    	// strcpy(input.key, log_url[i].url);
+    	// strcpy(input.data, log_url[i].url);
 
+      input.key = log_url[i].url;
+    	input.data = log_url[i].url;
     	ENTRY *result;
     	result = NULL;
 
     	if (hsearch(input, FIND) != NULL)
     	{
     		result = hsearch(input, FIND);
+        printf("%p\n", result);
     		free(result->key);
     		free(result->data);
     	}
+
+      //free(input.key);
+      //free(input.data);
     }
 
     free(my_png_url);
