@@ -179,35 +179,54 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
             }
           //  printf("test7\n");
             if ( href != NULL && !strncmp((const char *)href, "http", 4) ) {
-                ENTRY temp_entry;
+                ENTRY pending_entry;
                 char * temp_url = (char*) href;
                 int url_length = (strlen(temp_url) + 1);
             //    printf("test8\n");
               //  printf("TEST URL: %s\n", temp_url);
 
-                temp_entry.key = malloc(sizeof(char) * url_length);
-                temp_entry.data = malloc(sizeof(char) * url_length);
-                memset(temp_entry.key, 0, url_length);
-                memset(temp_entry.data, 0, url_length);
+                // temp_entry.key = malloc(sizeof(char) * url_length);
+                // temp_entry.data = malloc(sizeof(char) * url_length);
 
-                strcpy(temp_entry.key, temp_url);
-                strcpy(temp_entry.data, temp_url);
+                pending_entry.key = temp_url;
+                pending_entry.data = temp_url;
+
+
+
+
+                // memset(temp_entry.key, 0, url_length);
+                // memset(temp_entry.data, 0, url_length);
+                //
+                // strcpy(temp_entry.key, temp_url);
+                // strcpy(temp_entry.data, temp_url);
             //    printf("test9\n");
 
-                if (hsearch(temp_entry, FIND) == NULL){
+                if (hsearch(pending_entry, FIND) == NULL){
+                    ENTRY new_entry;
+
+                    new_entry.key = malloc(sizeof(char) * url_length);
+                    new_entry.data = malloc(sizeof(char) * url_length);
+
+                    memset(new_entry.key, 0, url_length);
+                    memset(new_entry.data, 0, url_length);
+
+                    strcpy(new_entry.key, temp_url);
+                    strcpy(new_entry.data, temp_url);
 
                     char* url_to_add = malloc( url_length* sizeof(char));
                     memset(url_to_add, 0, url_length);
                     strcpy(url_to_add, temp_url);
 
-                    hsearch(temp_entry, ENTER);
-                //    printf("URL_to_add: %s\n", url_to_add);
+                    hsearch(new_entry, ENTER);
+                    printf("URL_to_add: %s\n", url_to_add);
                     enqueue(queue, url_to_add);
                 }
-                else {
-                    free(temp_entry.key);
-                    free(temp_entry.data);
-                }
+                // else {
+                //   //  free_counter1++;
+                //     //printf("Freed1: %d\n", free_counter1);
+                //     free(temp_entry.key);
+                //     free(temp_entry.data);
+                // }
           //      printf("href: %s\n", href);
             }
             xmlFree(href);
@@ -620,7 +639,7 @@ int main( int argc, char** argv )
     while (!is_empty(url_queue) && URL_counter != m){
 
         char* next_url = dequeue(url_queue);
-      //  printf("DEQUEUE URL: %s\n", next_url);
+        printf("DEQUEUE URL: %s\n", next_url);
 
         strcpy(log_url[log_counter].url, next_url);
         log_url[log_counter].url_size = strlen(next_url) + 1;
@@ -675,12 +694,10 @@ int main( int argc, char** argv )
 
       input.key = log_url[i].url;
     	input.data = log_url[i].url;
-    	ENTRY *result;
-    	result = NULL;
 
     	if (hsearch(input, FIND) != NULL)
     	{
-    		result = hsearch(input, FIND);
+    		ENTRY *result = hsearch(input, FIND);
         printf("%p\n", result);
     		free(result->key);
     		free(result->data);
@@ -688,6 +705,22 @@ int main( int argc, char** argv )
 
       //free(input.key);
       //free(input.data);
+    }
+
+    while(is_empty(url_queue) == 0){
+      ENTRY input;
+
+      char* remaining_url = dequeue(url_queue);
+      input.key = remaining_url;
+    	input.data = remaining_url;
+
+    	if (hsearch(input, FIND) != NULL)
+    	{
+    		ENTRY *result = hsearch(input, FIND);
+        printf("%p\n", result);
+    		free(result->key);
+    		free(result->data);
+    	}
     }
 
     free(my_png_url);
