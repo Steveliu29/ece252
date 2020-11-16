@@ -80,37 +80,37 @@ void queue_destory(struct Queue *queue)
 }
 
 
-int main()
-{
-    struct Queue *queue = queue_init(5);
-
-    char *url1 = "http://ece252-1.uwaterloo.ca/~yqhuang/lab4/";
-    char *url2 = "http://ece252-1.uwaterloo.ca/~yqhuang/lab3/index.html";
-    char *url3 = "http://ece252-1.uwaterloo.ca/~yqhuang/lab4/Disguise.png";
-    int length1 = sizeof("http://ece252-1.uwaterloo.ca/~yqhuang/lab4/");
-    int length2 = sizeof("http://ece252-1.uwaterloo.ca/~yqhuang/lab3/index.html");
-    int length3 = sizeof("http://ece252-1.uwaterloo.ca/~yqhuang/lab4/Disguise.png");
-
-    char *URL1 = malloc(length1 * sizeof(char));
-    char *URL2 = malloc(length2 * sizeof(char));
-    char *URL3 = malloc(length3 * sizeof(char));
-    strcpy(URL1, url1);
-    strcpy(URL2, url2);
-    strcpy(URL3, url3);
-
-
-    enqueue(queue, URL1);
-    char *ptr1 = dequeue(queue);
-    enqueue(queue, URL2);
-    char *ptr2 = dequeue(queue);
-    enqueue(queue, URL3);
-    char *ptr3 = dequeue(queue);
-
-    printf("%s\n", ptr1);
-    printf("%s\n", ptr2);
-    printf("%s\n", ptr3);
-
-    queue_destory(queue);
-
-    return 0;
-}
+// int main()
+// {
+//     struct Queue *queue = queue_init(5);
+//
+//     char *url1 = "http://ece252-1.uwaterloo.ca/~yqhuang/lab4/";
+//     char *url2 = "http://ece252-1.uwaterloo.ca/~yqhuang/lab3/index.html";
+//     char *url3 = "http://ece252-1.uwaterloo.ca/~yqhuang/lab4/Disguise.png";
+//     int length1 = sizeof("http://ece252-1.uwaterloo.ca/~yqhuang/lab4/");
+//     int length2 = sizeof("http://ece252-1.uwaterloo.ca/~yqhuang/lab3/index.html");
+//     int length3 = sizeof("http://ece252-1.uwaterloo.ca/~yqhuang/lab4/Disguise.png");
+//
+//     char *URL1 = malloc(length1 * sizeof(char));
+//     char *URL2 = malloc(length2 * sizeof(char));
+//     char *URL3 = malloc(length3 * sizeof(char));
+//     strcpy(URL1, url1);
+//     strcpy(URL2, url2);
+//     strcpy(URL3, url3);
+//
+//
+//     enqueue(queue, URL1);
+//     char *ptr1 = dequeue(queue);
+//     enqueue(queue, URL2);
+//     char *ptr2 = dequeue(queue);
+//     enqueue(queue, URL3);
+//     char *ptr3 = dequeue(queue);
+//
+//     printf("%s\n", ptr1);
+//     printf("%s\n", ptr2);
+//     printf("%s\n", ptr3);
+//
+//     queue_destory(queue);
+//
+//     return 0;
+// }

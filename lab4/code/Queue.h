@@ -12,13 +12,13 @@
 
 
 // Queue struct
-struct Queue {
+typedef struct Queue {
     int front;
     int rear;
     int size;
     int capacity;
     char **ptr;
-};
+} my_queue;
 
 
 // Member functions
