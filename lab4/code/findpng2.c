@@ -586,14 +586,40 @@ int main( int argc, char** argv )
     my_queue* url_queue = queue_init(500);
     PNG_URL* my_png_url = malloc (m * sizeof(PNG_URL));
     PNG_URL log_url[500];
+
     for (int i = 0; i < m; i++){
         memset(my_png_url[i].url, 0, 256);
         my_png_url[i].url_size = -1;
     }
+
+    for (int i = 0; i < 500; i++){
+        memset(log_url[i].url, 0, 256);
+        log_url[i].url_size = -1;
+    }
+
     URL_counter = 0;
     int log_counter = 0;
 
-    enqueue(url_queue, url);
+    ENTRY first_entry;
+    int url_length = (strlen(url) + 1);
+    first_entry.key = malloc(sizeof(char) * url_length);
+    first_entry.data = malloc(sizeof(char) * url_length);
+    memset(first_entry.key, 0, url_length);
+    memset(first_entry.data, 0, url_length);
+
+    strcpy(first_entry.key, url);
+    strcpy(first_entry.data, url);
+
+    if (hsearch(first_entry, FIND) == NULL){
+
+        char* url_to_add = malloc( url_length* sizeof(char));
+        memset(url_to_add, 0, url_length);
+        strcpy(url_to_add, url);
+
+        hsearch(first_entry, ENTER);
+    //    printf("URL_to_add: %s\n", url_to_add);
+        enqueue(url_queue, url_to_add);
+    }
 
     while (!is_empty(url_queue) && URL_counter != m){
 
@@ -631,7 +657,7 @@ int main( int argc, char** argv )
     }
 
     write_url(my_png_url, URL_counter, "png_urls.txt");
-    
+
     if (v != "")
         write_url(log_url, log_counter, v);
 
