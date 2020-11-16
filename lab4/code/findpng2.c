@@ -39,7 +39,7 @@
 #include <libxml/uri.h>
 
 #include <search.h>
-#include "queue.c"
+#include "Queue.c"
 
 
 #define SEED_URL "http://ece252-1.uwaterloo.ca/lab4/"
@@ -610,15 +610,11 @@ int main( int argc, char** argv )
     strcpy(first_entry.key, url);
     strcpy(first_entry.data, url);
 
-    if (hsearch(first_entry, FIND) == NULL){
-
-        char* url_to_add = malloc( url_length* sizeof(char));
-        memset(url_to_add, 0, url_length);
-        strcpy(url_to_add, url);
-
+    if (hsearch(first_entry, FIND) == NULL)
+    {
         hsearch(first_entry, ENTER);
     //    printf("URL_to_add: %s\n", url_to_add);
-        enqueue(url_queue, url_to_add);
+        enqueue(url_queue, url);
     }
 
     while (!is_empty(url_queue) && URL_counter != m){
@@ -666,6 +662,30 @@ int main( int argc, char** argv )
         printf("My URL is %s\n", my_png_url[i].url);
 
     /* cleaning up */
+    for (int i = 0; i < log_counter; ++i)
+    {
+    	ENTRY input;
+    	input.key = malloc(log_url[i].url_size * sizeof(char));
+    	input.data = malloc(log_url[i].url_size * sizeof(char));
+    	memset(input.key, 0, log_url[i].url_size);
+    	memset(input.data, 0, log_url[i].url_size);
+    	strcpy(input.key, log_url[i].url);
+    	strcpy(input.data, log_url[i].url);
+
+    	ENTRY *result = malloc(sizeof(ENTRY));
+    	result = NULL;
+
+    	if (hsearch(input, FIND) != NULL)
+    	{
+    		result = hsearch(input, FIND);
+    		free(result->key);
+    		free(result->data);
+    	}
+
+    	free(input.key);
+    	free(input.data);
+    	free(result);
+    }
 
     free(my_png_url);
     queue_destory(url_queue);
