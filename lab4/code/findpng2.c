@@ -677,51 +677,24 @@ int main( int argc, char** argv )
         write_url(log_url, log_counter, v);
 
 
-    // for (int i = 0; i < m; i++)
-    //     printf("My URL is %s\n", my_png_url[i].url);
+    // Clean-up
 
-    /* cleaning up */
-    for (int i = 0; i < log_counter; ++i)
-    {
-    	ENTRY input;
-    	// input.key = malloc(log_url[i].url_size * sizeof(char));
-    	// input.data = malloc(log_url[i].url_size * sizeof(char));
-    	// memset(input.key, 0, log_url[i].url_size);
-    	// memset(input.data, 0, log_url[i].url_size);
-    	// strcpy(input.key, log_url[i].url);
-    	// strcpy(input.data, log_url[i].url);
+    for (int i = url_queue -> rear; i >= 0; i--){
+        ENTRY input;
 
-      input.key = log_url[i].url;
-    	input.data = log_url[i].url;
+        char* remaining_url = url_queue -> ptr[i];
+        input.key = remaining_url;
+      	input.data = remaining_url;
 
-    	if (hsearch(input, FIND) != NULL)
-    	{
-    		ENTRY *result = hsearch(input, FIND);
-        printf("%p\n", result);
-    		free(result->key);
-    		free(result->data);
-    	}
+        if (hsearch(input, FIND) != NULL)
+      	{
+      		ENTRY *result = hsearch(input, FIND);
+      		free(result->key);
+      		free(result->data);
+      	}
 
-      //free(input.key);
-      //free(input.data);
     }
-
-    while(is_empty(url_queue) == 0){
-      ENTRY input;
-
-      char* remaining_url = dequeue(url_queue);
-      input.key = remaining_url;
-    	input.data = remaining_url;
-
-    	if (hsearch(input, FIND) != NULL)
-    	{
-    		ENTRY *result = hsearch(input, FIND);
-        printf("%p\n", result);
-    		free(result->key);
-    		free(result->data);
-    	}
-    }
-
+    printf("queue size: %d\n", url_queue -> rear);
     free(my_png_url);
     free(log_url);
     queue_destory(url_queue);
