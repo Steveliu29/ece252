@@ -39,6 +39,8 @@
 #include <libxml/uri.h>
 
 #include <search.h>
+#include <pthread.h>
+#include <semaphore.h>
 #include "Queue.c"
 
 
@@ -53,6 +55,14 @@
 #define CT_HTML_LEN 9
 
 int URL_counter = 0;
+int log_counter = 0;
+int blocked_counter = 0;
+int thread_num = 0;
+pthread_mutex_t hash_mutex;
+pthread_mutex_t png_mutex;
+pthread_mutex_t queue_mutex;
+pthread_mutex_t mutex;
+sem_t item;
 
 #define max(a, b) \
    ({ __typeof__ (a) _a = (a); \
@@ -76,7 +86,6 @@ typedef struct variable_information {
     my_queue *url_queue;
     PNG_URL *my_png_url;
     PNG_URL *log_url;
-    int *log_counter;
     int m;
 } var_info;
 
@@ -91,8 +100,8 @@ int recv_buf_cleanup(RECV_BUF *ptr);
 void cleanup(CURL *curl, RECV_BUF *ptr);
 int write_file(const char *path, const void *in, size_t len);
 CURL *easy_handle_init(RECV_BUF *ptr, const char *url);
-int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_URL* my_png_url);
-void* operation(void *argument);
+int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_URL* my_png_url, int max_png);
+void *operation(void *argument);
 
 
 int is_png(char *buf){
@@ -111,11 +120,12 @@ int is_png(char *buf){
     for (int i = 0; i < 8; i++){
         if (buf[i] != correct_png[i]){
             /*wrong header for png*/
+  //          printf("free is_png1\n");
             free (correct_png);
             return 1;
         }
     }
-
+//    printf("free is_png2\n");
     free (correct_png);
     return 0;
 }
@@ -145,6 +155,7 @@ xmlXPathObjectPtr getnodeset (xmlDocPtr doc, xmlChar *xpath)
         return NULL;
     }
     result = xmlXPathEvalExpression(xpath, context);
+  //  printf("free xml1\n");
     xmlXPathFreeContext(context);
     if (result == NULL) {
   //      printf("Error in xmlXPathEvalExpression\n");
@@ -184,6 +195,7 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
             if ( follow_relative_links ) {
                 xmlChar *old = href;
                 href = xmlBuildURI(href, (xmlChar *) base_url);
+              //  printf("free xml2\n");
                 xmlFree(old);
             }
           //  printf("test7\n");
@@ -191,24 +203,11 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                 ENTRY pending_entry;
                 char * temp_url = (char*) href;
                 int url_length = (strlen(temp_url) + 1);
-            //    printf("test8\n");
-              //  printf("TEST URL: %s\n", temp_url);
-
-                // temp_entry.key = malloc(sizeof(char) * url_length);
-                // temp_entry.data = malloc(sizeof(char) * url_length);
 
                 pending_entry.key = temp_url;
                 pending_entry.data = temp_url;
 
 
-
-
-                // memset(temp_entry.key, 0, url_length);
-                // memset(temp_entry.data, 0, url_length);
-                //
-                // strcpy(temp_entry.key, temp_url);
-                // strcpy(temp_entry.data, temp_url);
-            //    printf("test9\n");
 
                 if (hsearch(pending_entry, FIND) == NULL){
                     ENTRY new_entry;
@@ -227,8 +226,11 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                     strcpy(url_to_add, temp_url);
 
                     hsearch(new_entry, ENTER);
-                    printf("URL_to_add: %s\n", url_to_add);
+                //    printf("URL_to_add: %s\n", url_to_add);
+                    pthread_mutex_lock(&queue_mutex);
                     enqueue(queue, url_to_add);
+                    pthread_mutex_unlock(&queue_mutex);
+                    sem_post(&item);
                 }
                 // else {
                 //   //  free_counter1++;
@@ -238,6 +240,7 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                 // }
           //      printf("href: %s\n", href);
             }
+          //  printf("free xml3\n");
             xmlFree(href);
         }
         xmlXPathFreeObject (result);
@@ -339,7 +342,7 @@ int recv_buf_cleanup(RECV_BUF *ptr)
     if (ptr == NULL) {
 	return 1;
     }
-
+  //  printf("free recv_buf_cleanup\n");
     free(ptr->buf);
     ptr->size = 0;
     ptr->max_size = 0;
@@ -487,16 +490,17 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue)
   //  printf("test2\n");
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
   //  printf("test3\n");
+    pthread_mutex_lock(&hash_mutex);
     find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url, queue);
-
+    pthread_mutex_unlock(&hash_mutex);
     return 0;
     // sprintf(fname, "./output_%d.html", pid);
     // return write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
-int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf, PNG_URL* my_png_url)
+int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf, PNG_URL* my_png_url, int max_png)
 {
-    pid_t pid =getpid();
+    pid_t pid = getpid();
     //char fname[256];
     char buf[8];
     memcpy(buf, p_recv_buf -> buf, 8);
@@ -506,9 +510,13 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf, PNG_URL* my_png_url)
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
     if ( eurl != NULL && is_png(buf) == 0) {
       //  printf("The PNG url is: %s\n", eurl);
-        strcpy(my_png_url[URL_counter].url, eurl);
-        my_png_url[URL_counter].url_size = strlen(eurl) + 1;
-        URL_counter = URL_counter + 1;
+        pthread_mutex_lock(&png_mutex);
+        if (URL_counter != max_png){
+            strcpy(my_png_url[URL_counter].url, eurl);
+            my_png_url[URL_counter].url_size = strlen(eurl) + 1;
+            URL_counter = URL_counter + 1;
+        }
+        pthread_mutex_unlock(&png_mutex);
     }
 
 
@@ -523,7 +531,7 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf, PNG_URL* my_png_url)
  * @return 0 on success; non-zero otherwise
  */
 
-int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_URL* my_png_url)
+int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_URL* my_png_url, int max_png)
 {
     CURLcode res;
     char fname[256];
@@ -553,7 +561,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_U
       //  printf("test1\n");
         return process_html(curl_handle, p_recv_buf, queue);
     } else if ( strstr(ct, CT_PNG) ) {
-        return process_png(curl_handle, p_recv_buf, my_png_url);
+        return process_png(curl_handle, p_recv_buf, my_png_url, max_png);
     } else {
         // sprintf(fname, "./output_%d", pid);
     }
@@ -562,27 +570,53 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_U
     // return write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
-void* operation(void *argument)
+void *operation(void *argument)
 {
     var_info *varInfo = (var_info *) argument;
     my_queue *url_queue = varInfo->url_queue;
     PNG_URL *my_png_url = varInfo->my_png_url;
     PNG_URL *log_url = varInfo->log_url;
-    int *log_counter = varInfo->log_counter;
     int m = varInfo->m;
 
-    while (!is_empty(url_queue) && URL_counter != m)
+    while (URL_counter != m)
     {
+        pthread_mutex_lock(&mutex);
+        blocked_counter ++;
+
+        if ((blocked_counter == thread_num && is_empty(url_queue) == 1)){
+            for (int i = 0; i < thread_num - 1; i++)
+                sem_post(&item);
+            pthread_mutex_unlock(&mutex);
+        //    printf("Reach Here\n");
+            return NULL;
+        }
+        pthread_mutex_unlock(&mutex);
+
+    //    printf("url_queue1: %d\n",is_empty(url_queue));
+        sem_wait(&item);
+      //  printf("url_queue2: %d\n",is_empty(url_queue));
+
+        pthread_mutex_lock(&mutex);
+        if (blocked_counter == thread_num && is_empty(url_queue) == 1){
+            pthread_mutex_unlock(&mutex);
+      //      printf("Reach There\n");
+            return NULL;
+        }
+        blocked_counter --;
+        pthread_mutex_unlock(&mutex);
+
         RECV_BUF recv_buf;
         CURL *curl_handle;
         CURLcode res;
+
+        pthread_mutex_lock(&queue_mutex);
         char* next_url = dequeue(url_queue);
-        printf("DEQUEUE URL: %s\n", next_url);
+        strcpy(log_url[log_counter].url, next_url);
+        log_url[log_counter].url_size = strlen(next_url) + 1;
+        log_counter = log_counter + 1;
+        pthread_mutex_unlock(&queue_mutex);
 
-        strcpy(log_url[*log_counter].url, next_url);
-        log_url[*log_counter].url_size = strlen(next_url) + 1;
-        *log_counter = *log_counter + 1;
-
+      //  printf("DEQUEUE URL: %s\n", next_url);
         curl_global_init(CURL_GLOBAL_DEFAULT);
         curl_handle = easy_handle_init(&recv_buf, next_url);
 
@@ -601,13 +635,28 @@ void* operation(void *argument)
             // exit(1);
         } else {
             //  printf("%lu bytes received in memory %p, seq=%d.\n", recv_buf.size, recv_buf.buf, recv_buf.seq);
-            process_data(curl_handle, &recv_buf, url_queue, my_png_url);
+            process_data(curl_handle, &recv_buf, url_queue, my_png_url, m);
         }
 
         /* process the download data */
 
         cleanup(curl_handle, &recv_buf);
+
+
+
     }
+    pthread_mutex_lock(&mutex);
+    thread_num --;
+//    printf("Blocked_counter: %d\n",blocked_counter);
+  //  printf("Thread Number: %d\n",thread_num);
+  //  printf("url_queue: %d\n",is_empty(url_queue));
+    if (blocked_counter == thread_num){
+        for (int i = 0; i < thread_num; i++){
+            sem_post(&item);
+        }
+    }
+    pthread_mutex_unlock(&mutex);
+  //  printf("I finished!\n");
 }
 
 int main( int argc, char** argv )
@@ -616,7 +665,7 @@ int main( int argc, char** argv )
 
     int c;
     int t = 1;
-    int m = 1;
+    int m = 50;
     char v[256];
     char *str = "option requires an argument";
 
@@ -671,8 +720,7 @@ int main( int argc, char** argv )
     }
 
     URL_counter = 0;
-    int *log_counter = malloc(sizeof(int));
-    *log_counter = 0;
+    log_counter = 0;
 
 
     ENTRY first_entry;
@@ -696,15 +744,33 @@ int main( int argc, char** argv )
     varInfo->url_queue = url_queue;
     varInfo->my_png_url = my_png_url;
     varInfo->log_url = log_url;
-    varInfo->log_counter = log_counter;
     varInfo->m = m;
 
-    operation(varInfo);
+    thread_num = t;
+    pthread_mutex_init(&hash_mutex, NULL);
+    pthread_mutex_init(&png_mutex, NULL);
+    pthread_mutex_init(&queue_mutex, NULL);
+    pthread_mutex_init(&mutex, NULL);
+    sem_init(&item, 0, 1);
+
+    pthread_t *tid;
+    tid = malloc(t * sizeof(pthread_t));
+    memset(tid, 0, t);
+
+    for (int i = 0; i < t; i++)
+    {
+        pthread_create(&(tid[i]), NULL, operation, varInfo);
+    }
+
+    for (int i = 0; i < t; ++i)
+    {
+        pthread_join(tid[i], NULL);
+    }
 
     write_url(my_png_url, URL_counter, "png_urls.txt");
 
     if (v != "")
-        write_url(log_url, *log_counter, v);
+        write_url(log_url, log_counter, v);
 
 
     // Clean-up
@@ -724,10 +790,10 @@ int main( int argc, char** argv )
       	}
 
     }
-    printf("queue size: %d\n", url_queue -> rear);
+    //printf("queue size: %d\n", url_queue -> rear);
     free(my_png_url);
     free(log_url);
-    free(log_counter);
+    free(tid);
     queue_destory(url_queue);
     free(varInfo);
     hdestroy();
