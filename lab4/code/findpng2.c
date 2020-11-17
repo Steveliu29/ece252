@@ -558,7 +558,6 @@ int main( int argc, char** argv )
     CURL *curl_handle;
     CURLcode res;
     char* url = malloc(256 * sizeof(char));
-    RECV_BUF recv_buf;
 
     int c;
     int t = 1;
@@ -604,7 +603,7 @@ int main( int argc, char** argv )
     hcreate(500);
     my_queue* url_queue = queue_init(500);
     PNG_URL* my_png_url = malloc (m * sizeof(PNG_URL));
-    PNG_URL log_url[500];
+    PNG_URL* log_url = malloc (500 * sizeof(PNG_URL));
 
     for (int i = 0; i < m; i++){
         memset(my_png_url[i].url, 0, 256);
@@ -637,7 +636,7 @@ int main( int argc, char** argv )
     }
 
     while (!is_empty(url_queue) && URL_counter != m){
-
+        RECV_BUF recv_buf;
         char* next_url = dequeue(url_queue);
         printf("DEQUEUE URL: %s\n", next_url);
 
@@ -724,6 +723,7 @@ int main( int argc, char** argv )
     }
 
     free(my_png_url);
+    free(log_url);
     queue_destory(url_queue);
     hdestroy();
 
