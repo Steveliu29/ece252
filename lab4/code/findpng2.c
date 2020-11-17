@@ -72,6 +72,14 @@ typedef struct png_url2 {
     int url_size;
 } PNG_URL;
 
+typedef struct variable_information {
+    my_queue *url_queue;
+    PNG_URL *my_png_url;
+    PNG_URL *log_url;
+    int *log_counter;
+    int m;
+} var_info;
+
 int is_png(char *buf);
 htmlDocPtr mem_getdoc(char *buf, int size, const char *url);
 xmlXPathObjectPtr getnodeset (xmlDocPtr doc, xmlChar *xpath);
@@ -84,6 +92,7 @@ void cleanup(CURL *curl, RECV_BUF *ptr);
 int write_file(const char *path, const void *in, size_t len);
 CURL *easy_handle_init(RECV_BUF *ptr, const char *url);
 int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_URL* my_png_url);
+void* operation(void *argument);
 
 
 int is_png(char *buf){
@@ -553,10 +562,56 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_U
     // return write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
+void* operation(void *argument)
+{
+    var_info *varInfo = (var_info *) argument;
+    my_queue *url_queue = varInfo->url_queue;
+    PNG_URL *my_png_url = varInfo->my_png_url;
+    PNG_URL *log_url = varInfo->log_url;
+    int *log_counter = varInfo->log_counter;
+    int m = varInfo->m;
+
+    while (!is_empty(url_queue) && URL_counter != m)
+    {
+        RECV_BUF recv_buf;
+        CURL *curl_handle;
+        CURLcode res;
+        char* next_url = dequeue(url_queue);
+        printf("DEQUEUE URL: %s\n", next_url);
+
+        strcpy(log_url[*log_counter].url, next_url);
+        log_url[*log_counter].url_size = strlen(next_url) + 1;
+        *log_counter = *log_counter + 1;
+
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        curl_handle = easy_handle_init(&recv_buf, next_url);
+
+        if ( curl_handle == NULL ) {
+            fprintf(stderr, "Curl initialization failed. Exiting...\n");
+            curl_global_cleanup();
+            abort();
+        }
+
+        /* get it! */
+        res = curl_easy_perform(curl_handle);
+
+        if( res != CURLE_OK) {
+            // fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+            // cleanup(curl_handle, &recv_buf);
+            // exit(1);
+        } else {
+            //  printf("%lu bytes received in memory %p, seq=%d.\n", recv_buf.size, recv_buf.buf, recv_buf.seq);
+            process_data(curl_handle, &recv_buf, url_queue, my_png_url);
+        }
+
+        /* process the download data */
+
+        cleanup(curl_handle, &recv_buf);
+    }
+}
+
 int main( int argc, char** argv )
 {
-    CURL *curl_handle;
-    CURLcode res;
     char* url = malloc(256 * sizeof(char));
 
     int c;
@@ -616,7 +671,9 @@ int main( int argc, char** argv )
     }
 
     URL_counter = 0;
-    int log_counter = 0;
+    int *log_counter = malloc(sizeof(int));
+    *log_counter = 0;
+
 
     ENTRY first_entry;
     int url_length = (strlen(url) + 1);
@@ -635,46 +692,19 @@ int main( int argc, char** argv )
         enqueue(url_queue, url);
     }
 
-    while (!is_empty(url_queue) && URL_counter != m){
-        RECV_BUF recv_buf;
-        char* next_url = dequeue(url_queue);
-        printf("DEQUEUE URL: %s\n", next_url);
+    var_info *varInfo = malloc(sizeof(var_info));
+    varInfo->url_queue = url_queue;
+    varInfo->my_png_url = my_png_url;
+    varInfo->log_url = log_url;
+    varInfo->log_counter = log_counter;
+    varInfo->m = m;
 
-        strcpy(log_url[log_counter].url, next_url);
-        log_url[log_counter].url_size = strlen(next_url) + 1;
-        log_counter = log_counter + 1;
-
-        curl_global_init(CURL_GLOBAL_DEFAULT);
-        curl_handle = easy_handle_init(&recv_buf, next_url);
-
-        if ( curl_handle == NULL ) {
-            fprintf(stderr, "Curl initialization failed. Exiting...\n");
-            curl_global_cleanup();
-            abort();
-        }
-
-        /* get it! */
-        res = curl_easy_perform(curl_handle);
-
-        if( res != CURLE_OK) {
-            // fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-            // cleanup(curl_handle, &recv_buf);
-            // exit(1);
-        } else {
-	         //  printf("%lu bytes received in memory %p, seq=%d.\n", recv_buf.size, recv_buf.buf, recv_buf.seq);
-             process_data(curl_handle, &recv_buf, url_queue, my_png_url);
-        }
-
-        /* process the download data */
-
-        cleanup(curl_handle, &recv_buf);
-
-    }
+    operation(varInfo);
 
     write_url(my_png_url, URL_counter, "png_urls.txt");
 
     if (v != "")
-        write_url(log_url, log_counter, v);
+        write_url(log_url, *log_counter, v);
 
 
     // Clean-up
@@ -697,7 +727,9 @@ int main( int argc, char** argv )
     printf("queue size: %d\n", url_queue -> rear);
     free(my_png_url);
     free(log_url);
+    free(log_counter);
     queue_destory(url_queue);
+    free(varInfo);
     hdestroy();
 
     return 0;
