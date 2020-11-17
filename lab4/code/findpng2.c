@@ -578,7 +578,13 @@ void *operation(void *argument)
     PNG_URL *log_url = varInfo->log_url;
     int m = varInfo->m;
 
-    while (URL_counter != m)
+    int max_URL_flag;
+
+    pthread_mutex_lock(&png_mutex);
+    max_URL_flag = (URL_counter != m);
+    pthread_mutex_unlock(&png_mutex);
+
+    while (max_URL_flag != 0)
     {
         pthread_mutex_lock(&mutex);
         blocked_counter ++;
@@ -642,7 +648,9 @@ void *operation(void *argument)
 
         cleanup(curl_handle, &recv_buf);
 
-
+        pthread_mutex_lock(&png_mutex);
+        max_URL_flag = (URL_counter != m);
+        pthread_mutex_unlock(&png_mutex);
 
     }
     pthread_mutex_lock(&mutex);
