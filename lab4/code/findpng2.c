@@ -669,6 +669,17 @@ void *operation(void *argument)
 
 int main( int argc, char** argv )
 {
+	// Start the timer
+    double times[2];
+    struct timeval tv;
+
+    if (gettimeofday(&tv, NULL) != 0) 
+    {
+        perror("gettimeofday");
+        abort();
+    }
+    times[0] = tv.tv_sec + (tv.tv_usec / 1000000.0);
+
     char* url = malloc(256 * sizeof(char));
 
     int c;
@@ -777,7 +788,7 @@ int main( int argc, char** argv )
 
     write_url(my_png_url, URL_counter, "png_urls.txt");
 
-    if (v != "")
+    if (v[0] != 0)
         write_url(log_url, log_counter, v);
 
 
@@ -805,6 +816,15 @@ int main( int argc, char** argv )
     queue_destory(url_queue);
     free(varInfo);
     hdestroy();
+
+    // End the timer
+    if (gettimeofday(&tv, NULL) != 0) 
+    {
+        perror("gettimeofday");
+        abort();
+    }
+    times[1] = tv.tv_sec + (tv.tv_usec / 1000000.0);
+    printf("findpng2 execution time: %.6lf seconds\n", times[1] - times[0]);
 
     return 0;
 }
