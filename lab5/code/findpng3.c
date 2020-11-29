@@ -219,7 +219,7 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                     strcpy(url_to_add, temp_url);
 
                     hsearch(new_entry, ENTER);
-                    printf("URL_to_add: %s\n", url_to_add);
+                    // printf("URL_to_add: %s\n", url_to_add);
                     enqueue(queue, url_to_add);
                 }
                 // else {
@@ -382,26 +382,26 @@ void write_url(PNG_URL* png_url, int URL_counter, char* file_name){
     int total_size = 0;
     for (int i = 0; i < URL_counter; i++){
         total_size = total_size + png_url[i].url_size;
-        printf("total_size: %d\n", total_size);
-        printf("png_url[i].url_size: %d\n", png_url[i].url_size);
+        // printf("total_size: %d\n", total_size);
+        // printf("png_url[i].url_size: %d\n", png_url[i].url_size);
     }
-    printf("test7-2\n");
-    printf("URL_counter: %d\n", URL_counter);
+    // printf("test7-2\n");
+    // printf("URL_counter: %d\n", URL_counter);
 
     char* file_to_write = malloc(total_size * sizeof(char));
-    printf("test7-3\n");
+    // printf("test7-3\n");
     int read_counter = 0;
     for (int i = 0; i < URL_counter; i++){
-        printf("test7-3-1\n");
+        // printf("test7-3-1\n");
         memcpy(file_to_write + read_counter, png_url[i].url, png_url[i].url_size);
-        printf("test7-3-2\n");
+        // printf("test7-3-2\n");
         file_to_write[read_counter + png_url[i].url_size - 1] = '\n';
-        printf("test7-3-3\n");
+        // printf("test7-3-3\n");
         read_counter = read_counter + png_url[i].url_size;
 
 
     }
-    printf("test7-4\n");
+    // printf("test7-4\n");
     write_file(file_name, file_to_write, total_size);
 
     free(file_to_write);
@@ -567,6 +567,17 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf, my_queue* queue, PNG_U
 
 int main( int argc, char** argv )
 {
+    // Start the timer
+    double times[2];
+    struct timeval tv;
+
+    if (gettimeofday(&tv, NULL) != 0) 
+    {
+        perror("gettimeofday");
+        abort();
+    }
+    times[0] = tv.tv_sec + (tv.tv_usec / 1000000.0);
+
     CURLM *cm = NULL;
     CURL *eh = NULL;
     CURLMsg *msg = NULL;
@@ -576,7 +587,7 @@ int main( int argc, char** argv )
 
     int c;
     int t = 1;
-    int m = 1;
+    int m = 50;
     char v[256];
     char *str = "option requires an argument";
 
@@ -661,27 +672,27 @@ int main( int argc, char** argv )
 
     while (!is_empty(url_queue) && URL_counter != m){
 
-        printf("URL_counter: %d\n", URL_counter);
+        // printf("URL_counter: %d\n", URL_counter);
         int num_request = 0;
 
-        printf("test1\n");
+        // printf("test1\n");
 
         while (num_request < t && !is_empty(url_queue)){
 
-            printf("test2\n");
+            // printf("test2\n");
             char* next_url = dequeue(url_queue);
-            printf("DEQUEUE URL: %s\n", next_url);
+            // printf("DEQUEUE URL: %s\n", next_url);
 
 
             strcpy(log_url[log_counter].url, next_url);
             log_url[log_counter].url_size = strlen(next_url) + 1;
-            printf("Log_length: %d\n", log_url[log_counter].url_size);
+            // printf("Log_length: %d\n", log_url[log_counter].url_size);
             log_counter = log_counter + 1;
-            printf("Log_counter: %d\n", log_counter);
+            // printf("Log_counter: %d\n", log_counter);
 
             CURL *temp_handle = easy_handle_init(&recv_buf[num_request], next_url, num_request);
-            printf("temp_handle: %p\n", temp_handle);
-            printf("new_index: %d\n", num_request);
+            // printf("temp_handle: %p\n", temp_handle);
+            // printf("new_index: %d\n", num_request);
             curl_multi_add_handle(cm, temp_handle);
             //curl_handle = easy_handle_init(&recv_buf[num_request], next_url);
 
@@ -691,7 +702,7 @@ int main( int argc, char** argv )
             //     abort();
             // }
             num_request = num_request + 1;
-            printf("iter2: %d\n", iter2);
+            // printf("iter2: %d\n", iter2);
             iter2 ++;
         }
         /* get it! */
@@ -699,7 +710,7 @@ int main( int argc, char** argv )
         int still_running = 0;
         curl_multi_perform(cm, &still_running);
         do {
-            printf("test3\n");
+            // printf("test3\n");
             int numfds=0;
             int res = curl_multi_wait(cm, NULL, 0, MAX_WAIT_MSECS, &numfds);
             if(res != CURLM_OK) {
@@ -716,19 +727,19 @@ int main( int argc, char** argv )
         } while(still_running);
         /*Multi-perform is Donw*/
 
-          printf("test4\n");
+          // printf("test4\n");
 
         while ((msg = curl_multi_info_read(cm, &msgs_left))) {
-              printf("test5\n");
+              // printf("test5\n");
             if (msg->msg == CURLMSG_DONE) {
                 int curl_index = 0;
                 eh = msg->easy_handle;
 
                 return_code = msg->data.result;
                 if(return_code!=CURLE_OK) {
-                    printf("curl_handle NOT OK: %p\n", eh);
+                    // printf("curl_handle NOT OK: %p\n", eh);
                     curl_easy_getinfo(eh, CURLINFO_PRIVATE, &curl_index);
-                    printf("CURL index: %d\n", curl_index);
+                    // printf("CURL index: %d\n", curl_index);
                     curl_multi_remove_handle(cm, eh);
                     cleanup(eh, &recv_buf[curl_index]);
                   //  fprintf(stderr, "CURL error code: %d\n", msg->data.result);
@@ -750,10 +761,10 @@ int main( int argc, char** argv )
                 // } else {
                 //     fprintf(stderr, "GET of %s returned http status code %d\n", szUrl, http_status_code);
                 // }
-                printf("curl_handle: %p\n", eh);
+                // printf("curl_handle: %p\n", eh);
                 curl_multi_remove_handle(cm, eh);
                 cleanup(eh, &recv_buf[curl_index]);
-                printf("iteration: %d\n", iter);
+                // printf("iteration: %d\n", iter);
                 iter ++;
             }
             else {
@@ -761,7 +772,7 @@ int main( int argc, char** argv )
             }
         }
 
-          printf("test6\n");
+          // printf("test6\n");
 
 
 	      //  printf("%lu bytes received in memory %p, seq=%d.\n", recv_buf.size, recv_buf.buf, recv_buf.seq);
@@ -774,17 +785,17 @@ int main( int argc, char** argv )
 
     }
 
-    printf("test7\n");
+    // printf("test7\n");
 
     write_url(my_png_url, URL_counter, "png_urls.txt");
-      printf("test7-1\n");
+      // printf("test7-1\n");
 
     if (v[0] != 0)
         write_url(log_url, log_counter, v);
 
 
     // Clean-up
-    printf("test8\n");
+    // printf("test8\n");
     for (int i = url_queue -> rear; i >= 0; i--){
         ENTRY input;
 
@@ -801,8 +812,8 @@ int main( int argc, char** argv )
 
     }
 
-    printf("test9\n");
-    printf("queue size: %d\n", url_queue -> rear);
+    // printf("test9\n");
+    // printf("queue size: %d\n", url_queue -> rear);
     curl_multi_cleanup(cm);
     free(my_png_url);
     free(log_url);
@@ -810,6 +821,15 @@ int main( int argc, char** argv )
     queue_destory(url_queue);
     hdestroy();
 
-    printf("test10\n");
+    // End the timer
+    if (gettimeofday(&tv, NULL) != 0) 
+    {
+        perror("gettimeofday");
+        abort();
+    }
+    times[1] = tv.tv_sec + (tv.tv_usec / 1000000.0);
+    printf("findpng3 execution time: %.6lf seconds\n", times[1] - times[0]);
+
+    // printf("test10\n");
     return 0;
 }
